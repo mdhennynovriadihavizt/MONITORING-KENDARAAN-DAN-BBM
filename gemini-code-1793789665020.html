@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PT SUCOFINDO (PERSERO) PUMA SCI — Monitoring BBM & Kendaraan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #2563eb;
+  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --accent-cyan: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --navy-dark: #0b132b;
+  --sidebar-bg: #1c2541;
+  --bg-main: #f8fafc;
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+  --glow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #f1f5f9;
+  color: var(--text-main);
+  background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+button, input, select, textarea { font: inherit; }
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+button:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+button:active { transform: translateY(0); }
+
+.primary { background: var(--primary-gradient); color: #fff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35); }
+.primary:hover { box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5); }
+.secondary { background: #e2e8f0; color: #334155; }
+.secondary:hover { background: #cbd5e1; }
+.success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+.danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+.outline { background: #ffffff; border: 1.5px solid var(--border-color); color: var(--text-main); }
+.outline:hover { border-color: #3b82f6; color: #2563eb; background: #f8fafc; }
+
+.app { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+
+.sidebar {
+  background: var(--sidebar-bg);
+  color: #fff;
+  padding: 28px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.06);
+  position: relative;
+  z-index: 5;
+}
+
+.brand { display: flex; align-items: center; gap: 14px; padding: 0 8px; }
+.brandmark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--primary-gradient);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: var(--glow);
+}
+.brand h1 { font-size: 13px; margin: 0; letter-spacing: 0.5px; line-height: 1.3; font-weight: 800; }
+.brand p { margin: 3px 0 0; font-size: 11px; color: #94a3b8; font-weight: 600; }
+
+.navlabel { font-size: 11px; color: #64748b; letter-spacing: 1.2px; font-weight: 800; padding: 0 12px; margin-bottom: -12px; text-transform: uppercase; }
+.nav button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: #94a3b8;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin: 3px 0;
+  justify-content: flex-start;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.nav button.active { background: var(--primary-gradient); color: #fff; box-shadow: var(--glow); }
+.nav button:hover:not(.active) { background: rgba(255, 255, 255, 0.06); color: #f1f5f9; }
+.nav .ico { font-size: 18px; }
+
+.sidebar-foot { margin-top: auto; color: #64748b; font-size: 11px; line-height: 1.6; padding: 12px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); text-align: center; font-weight: 500; }
+
+.main { min-width: 0; }
+.topbar {
+  height: 80px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+.crumb { font-size: 11px; color: #3b82f6; font-weight: 800; letter-spacing: 1px; }
+.topbar h2 { font-size: 22px; margin: 2px 0 0; font-weight: 800; letter-spacing: -0.5px; }
+.topright { display: flex; align-items: center; gap: 14px; }
+.company-logo { height: 42px; width: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05)); }
+.user-badge { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 99px; box-shadow: var(--shadow-sm); }
+.user-info { display: flex; flex-direction: column; text-align: right; }
+.user-name { font-size: 12.5px; font-weight: 800; color: var(--text-main); }
+.user-role { font-size: 10.5px; font-weight: 700; color: #2563eb; text-transform: uppercase; }
+
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 13px; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3); }
+
+.content { padding: 32px 36px; max-width: 1600px; margin: auto; }
+.welcome { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 28px; }
+.welcome h3 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.welcome p { color: var(--text-muted); margin: 6px 0 0; font-size: 14px; font-weight: 500; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-bottom: 24px; }
+.stat {
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,0.7);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+.stat::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--primary-gradient); }
+.stat-top { display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 12.5px; font-weight: 700; }
+.stat-icon { width: 42px; height: 42px; border-radius: 14px; background: #eff6ff; color: #2563eb; display: grid; place-items: center; font-size: 20px; }
+.stat-value { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin: 16px 0 4px; color: var(--text-main); }
+.stat-note { font-size: 11.5px; color: var(--text-muted); font-weight: 500; }
+
+.grid2 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; margin-bottom: 24px; }
+.panel {
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,0.8);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+.panel-head { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.panel-head h4 { font-size: 16px; margin: 0; font-weight: 800; }
+.panel-head p { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; font-weight: 500; }
+.panel-body { padding: 22px 24px; }
+
+.bars { display: flex; align-items: flex-end; gap: 16px; height: 180px; padding: 10px 0 0; }
+.bar-col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; }
+.bar { width: 70%; max-width: 38px; background: var(--primary-gradient); border-radius: 8px 8px 3px 3px; min-height: 4px; transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+.bar-label { font-size: 11px; color: var(--text-muted); font-weight: 700; }
+.bar-val { font-size: 10px; color: #475569; font-weight: 800; white-space: nowrap; }
+
+.donut-wrap { display: flex; align-items: center; gap: 24px; min-height: 180px; }
+.donut { width: 140px; height: 140px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; position: relative; box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+.donut:after { content: ""; position: absolute; inset: 20px; background: white; border-radius: 50%; box-shadow: inset 0 2px 6px rgba(0,0,0,0.05); }
+.donut-center { position: relative; z-index: 1; text-align: center; }
+.donut-center strong { display: block; font-size: 22px; font-weight: 800; color: var(--text-main); }
+.donut-center span { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.legend { display: grid; gap: 10px; font-size: 12.5px; flex: 1; font-weight: 600; }
+.legend div { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 6px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+
+.section { display: none; }
+.section.active { display: block; animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.toolbar { display: flex; gap: 12px; flex-wrap: wrap; padding: 18px 24px; border-bottom: 1px solid var(--border-color); align-items: center; background: rgba(248, 250, 252, 0.5); }
+.search { flex: 1; min-width: 220px; position: relative; }
+.search input { padding-left: 40px; }
+.search:before { content: "⌕"; position: absolute; left: 14px; top: 7px; color: #94a3b8; font-size: 22px; font-weight: 300; }
+
+.field, input, select, textarea {
+  width: 100%;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: 11px 14px;
+  color: var(--text-main);
+  outline: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.field:focus, input:focus, select:focus, textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); }
+label { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.formgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.formgrid .full { grid-column: 1/-1; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+.tablewrap { overflow: auto; }
+table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 13px; }
+th { text-align: left; background: #f8fafc; color: #64748b; font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; padding: 14px 18px; border-bottom: 1px solid var(--border-color); font-weight: 800; }
+td { padding: 16px 18px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+tbody tr { transition: background 0.15s; }
+tbody tr:hover { background: #f8fafc; }
+.empty { text-align: center; padding: 40px; color: var(--text-muted); font-weight: 600; }
+
+.badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: 0.3px; }
+.b-green { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.b-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.b-red { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.b-blue { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.b-gray { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+.rowactions { display: flex; gap: 6px; }
+.tiny { padding: 6px 12px; font-size: 11px; border-radius: 8px; }
+.hint { background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%); border: 1px solid #bfdbfe; padding: 16px 20px; border-radius: var(--radius-md); font-size: 13px; color: #1e40af; line-height: 1.6; margin-bottom: 22px; font-weight: 500; }
+
+.filters { display: flex; gap: 10px; align-items: center; }
+.filters select { width: auto; min-width: 140px; }
+
+.reportcards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 20px; }
+.reportcard { padding: 22px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.reportcard span { font-size: 12px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+.reportcard strong { display: block; font-size: 24px; margin-top: 8px; font-weight: 800; color: var(--text-main); }
+.notice { font-size: 12.5px; color: var(--text-muted); padding: 16px 24px; font-weight: 600; }
+
+.modalback { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+.modalback.show { display: flex; animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+.modal { width: min(720px, 100%); max-height: 90vh; overflow: auto; background: #fff; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid rgba(255,255,255,0.2); }
+.modalhead { display: flex; justify-content: space-between; align-items: center; padding: 22px 28px; border-bottom: 1px solid var(--border-color); background: #f8fafc; }
+.modalhead h3 { margin: 0; font-size: 18px; font-weight: 800; }
+.modalbody { padding: 28px; }
+
+.toast { position: fixed; right: 28px; bottom: 28px; background: var(--navy-dark); color: #fff; padding: 14px 22px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: 13.5px; font-weight: 600; z-index: 60; display: none; border: 1px solid rgba(255,255,255,0.1); }
+.toast.show { display: block; animation: fadeIn 0.3s; }
+.footnote { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-top: 20px; font-weight: 500; }
+.mobile-menu { display: none; }
+
+/* Upload Box Style */
+.upload-box { border: 2px dashed #cbd5e1; padding: 16px; border-radius: var(--radius-md); text-align: center; background: #f8fafc; transition: all 0.2s; cursor: pointer; }
+.upload-box:hover { border-color: #3b82f6; background: #eff6ff; }
+.preview-img { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; margin-top: 8px; border: 1px solid #e2e8f0; display: none; }
+
+/* Modal Login Dedicated Style */
+.login-overlay { position: fixed; inset: 0; background: var(--navy-dark); background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.2) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.2) 0px, transparent 50%); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card { background: #ffffff; width: min(440px, 100%); border-radius: 24px; padding: 36px 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); text-align: center; }
+.login-header { margin-bottom: 24px; }
+.login-header .brandmark { margin: 0 auto 12px; width: 54px; height: 54px; font-size: 26px; }
+.login-header h2 { font-size: 18px; margin: 0; font-weight: 800; color: var(--navy-dark); }
+.login-header p { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; font-weight: 600; }
+.role-select { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; background: #f1f5f9; padding: 4px; border-radius: var(--radius-md); }
+.role-btn { border-radius: var(--radius-sm); padding: 10px; font-size: 12.5px; font-weight: 700; color: #64748b; background: transparent; transition: all 0.2s; cursor: pointer; text-align: center; border: 0; }
+.role-btn.active { background: #ffffff; color: #2563eb; box-shadow: var(--shadow-sm); }
+
+@media(max-width:1000px){
+  .app{grid-template-columns:230px 1fr}
+  .content{padding:24px 20px}
+  .topbar{padding:0 20px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+}
+@media(max-width:750px){
+  .app{display:block}
+  .sidebar{display:none;position:fixed;inset:0 auto 0 0;width:270px;z-index:30}
+  .sidebar.open{display:flex}
+  .mobile-menu{display:inline-flex}
+  .topbar{height:70px;padding:0 16px}
+  .topbar h2{font-size:18px}
+  .company-logo{height:32px}
+  .content{padding:20px 14px}
+  .welcome{align-items:flex-start;flex-direction:column}
+  .stats{gap:12px}
+  .stat{padding:16px}
+  .stat-value{font-size:22px}
+  .formgrid{grid-template-columns:1fr}
+  .reportcards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- MODAL LOGIN DEDICATED -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="brandmark">S</div>
+      <h2>PT SUCOFINDO (PERSERO)</h2>
+      <p>PUMA SCI Bandar Lampung · Monitoring BBM & Kendaraan</p>
+    </div>
+    <form id="authForm" onsubmit="handleLogin(event)">
+      <div style="text-align:left;margin-bottom:14px">
+        <label>Pilih Jenis Akses Log In</label>
+        <div class="role-select">
+          <button type="button" class="role-btn active" id="btnRoleUser" onclick="setLoginRole('user')">👤 User</button>
+          <button type="button" class="role-btn" id="btnRoleAdmin" onclick="setLoginRole('admin')">🔑 Admin</button>
+        </div>
+      </div>
+      <div style="text-align:left;margin-bottom:14px">
+        <label>Nama Pengguna / Username *</label>
+        <input type="text" id="loginUsername" required placeholder="Masukkan username..." value="PUMASCIBDL">
+      </div>
+      <div style="text-align:left;margin-bottom:20px" id="passwordGroup">
+        <label id="passwordLabel">Kata Sandi *</label>
+        <input type="password" id="loginPassword" placeholder="Masukkan password..." value="PUMASCIBDL2026">
+      </div>
+      <button type="submit" class="primary" style="width:100%;padding:12px">Masuk ke Sistem</button>
+    </form>
+  </div>
+</div>
+
+<div class="app">
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brandmark">S</div>
+    <div>
+      <h1>PT SUCOFINDO<br><span style="color:#60a5fa">PUMA SCI BANDAR LAMPUNG</span></h1>
+      <p>Monitoring BBM & Kendaraan</p>
+    </div>
+  </div>
+  
+  <div class="navlabel">Menu Utama</div>
+  <nav class="nav">
+    <button data-page="dashboard" class="admin-only"><span class="ico">📊</span>Dashboard</button>
+    <button data-page="requests"><span class="ico">🚘</span>Permintaan Mobil</button>
+    <button data-page="fuel"><span class="ico">⛽</span>Monitoring BBM</button>
+    <button data-page="vehicles" class="admin-only"><span class="ico">🚙</span>Data Kendaraan</button>
+    <button data-page="reports" class="admin-only"><span class="ico">📈</span>Laporan & Ekspor</button>
+  </nav>
+  
+  <div class="navlabel admin-only">Pengelolaan Data</div>
+  <nav class="nav admin-only">
+    <button id="backupBtn"><span class="ico">💾</span>Backup Data (JSON)</button>
+    <button id="restoreBtn"><span class="ico">📂</span>Import Backup (JSON)</button>
+    <button id="importCsvBtn" onclick="openImportCsvModal()"><span class="ico">📥</span>Import dari CSV</button>
+    <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    <input type="file" id="importCsvFile" accept=".csv" hidden>
+  </nav>
+
+  <div class="sidebar-foot">PT SUCOFINDO (PERSERO)<br>PUMA SCI Bandar Lampung</div>
+</aside>
+
+<main class="main">
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <button class="secondary mobile-menu" id="menuBtn">☰</button>
+    <div>
+      <div class="crumb">OPERASIONAL / <span id="crumb">PERMINTAAN MOBIL</span></div>
+      <h2 id="pageTitle">Permintaan Mobil</h2>
+    </div>
+  </div>
+  <div class="topright">
+    <img src="PT_Sucofindo.png" alt="Logo Sucofindo" class="company-logo" onerror="this.style.display='none'">
+    <div class="user-badge">
+      <div class="user-info">
+        <span class="user-name" id="currentUserName">PUMASCIBDL</span>
+        <span class="user-role" id="currentUserRole">User</span>
+      </div>
+      <div class="avatar" id="currentUserAvatar">P</div>
+      <button class="outline tiny" style="margin-left:6px;padding:5px 8px;" onclick="showLoginModal()" title="Keluar / Ganti Akun">🚪</button>
+    </div>
+  </div>
+</header>
+
+<div class="content">
+<section class="section" id="page-dashboard">
+  <div class="welcome">
+    <div>
+      <h3>Ringkasan Operasional ✨</h3>
+      <p>Pantau penggunaan BBM & operasional kendaraan PT SUCOFINDO PUMA SCI Bandar Lampung.</p>
+    </div>
+    <div class="actions">
+      <button class="outline" onclick="navigate('fuel')">＋ Catat BBM</button>
+      <button class="primary" onclick="navigate('requests')">＋ Permintaan Mobil</button>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-top"><span>Total Pengeluaran BBM</span><span class="stat-icon">💳</span></div><div class="stat-value" id="statFuel">Rp0</div><div class="stat-note">Semua riwayat pengisian</div></div>
+    <div class="stat"><div class="stat-top"><span>Total Volume BBM</span><span class="stat-icon">⛽</span></div><div class="stat-value" id="statLiters">0 L</div><div class="stat-note">Akumulasi liter tercatat</div></div>
+    <div class="stat"><div class="stat-top"><span>Permintaan Menunggu</span><span class="stat-icon">⏳</span></div><div class="stat-value" id="statPending">0</div><div class="stat-note">Perlu persetujuan admin</div></div>
+    <div class="stat"><div class="stat-top"><span>Kendaraan Aktif</span><span class="stat-icon">🚙</span></div><div class="stat-value" id="statVehicles">0</div><div class="stat-note" id="statVehicleNote">Dari seluruh fleet</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div><h4>Tren Pengeluaran BBM</h4><p>6 bulan terakhir · berdasarkan pengisian</p></div><span class="badge b-blue">BBM</span></div>
+      <div class="panel-body"><div class="bars" id="fuelChart"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h4>Status Permintaan Mobil</h4><p>Komposisi pengajuan kendaraan</p></div></div>
+      <div class="panel-body"><div class="donut-wrap"><div class="donut" id="requestDonut"><div class="donut-center"><strong id="requestTotal">0</strong><span>Total</span></div></div><div class="legend" id="requestLegend"></div></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div><h4>Aktivitas Terbaru</h4><p>Catatan BBM dan pengajuan kendaraan terbaru</p></div><button class="outline tiny" onclick="navigate('reports')">Lihat semua →</button></div>
+    <div class="tablewrap"><table><thead><tr><th>Tanggal</th><th>Aktivitas</th><th>Bidang / Pemohon</th><th>Detail</th><th>Status</th></tr></thead><tbody id="recentTable"></tbody></table></div>
+  </div>
+</section>
+
+<section class="section" id="page-fuel">
+  <div class="welcome">
+    <div><h3>Monitoring Pengisian BBM</h3><p>Catat transaksi dari struk / kartu BBM dan lampirkan foto bukti fisik.</p></div>
+    <div class="actions">
+      <button class="outline admin-only" onclick="openImportCsvModal('fuel')">📥 Import CSV</button>
+      <button class="primary" onclick="openFuelForm()">＋ Tambah Pengisian BBM</button>
+    </div>
+  </div>
+  <div class="hint"><b>Kontrol Pencatatan:</b> Isi data transaksi BBM lengkap beserta foto bukti fisik agar tercetak saat diprint.</div>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="search"><input id="fuelSearch" placeholder="Cari bidang, kendaraan, pengemudi, SPBU..." oninput="renderFuel()"></div>
+      <div class="filters">
+        <select id="fuelBidangFilter" onchange="renderFuel()"><option value="">Semua Bidang</option><option>BITU</option><option>BIP</option><option>PDO</option><option>DUKBIS</option></select>
+        <select id="fuelMethodFilter" onchange="renderFuel()"><option value="">Semua Metode</option><option>Struk / Tunai</option><option>Kartu BBM</option></select>
+        <select id="fuelMonthFilter" onchange="renderFuel()"><option value="">Semua Bulan</option></select>
+      </div>
+      <button class="outline" onclick="exportCSV('fuel')">Ekspor Excel</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Bidang</th>
+            <th>Kendaraan</th>
+            <th>Pengemudi</th>
+            <th>SPBU & Lokasi</th>
+            <th>Volume</th>
+            <th>Nominal</th>
+            <th>Bukti Foto</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="fuelTable"></tbody>
+      </table>
+    </div>
+    <div class="notice" id="fuelCount"></div>
+  </div>
+</section>
+
+<section class="section active" id="page-requests">
+  <div class="welcome">
+    <div><h3>Permintaan Mobil Operasional</h3><p>Kelola dan ajukan pemakaian kendaraan dinas operasional.</p></div>
+    <div class="actions">
+      <button class="outline admin-only" onclick="openImportCsvModal('requests')">📥 Import CSV</button>
+      <button class="primary" onclick="openRequestForm()">＋ Ajukan Permintaan Mobil</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="search"><input id="requestSearch" placeholder="Cari pemohon, divisi, tujuan..." oninput="renderRequests()"></div>
+      <div class="filters">
+        <select id="requestStatusFilter" onchange="renderRequests()"><option value="">Semua Status</option><option>Menunggu</option><option>Disetujui</option><option>Ditolak</option><option>Selesai</option></select>
+      </div>
+      <button class="outline" onclick="exportCSV('requests')">Ekspor Excel</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal Pengajuan</th>
+            <th>Pemohon / Divisi</th>
+            <th>Tujuan & Keperluan</th>
+            <th>Jadwal</th>
+            <th>Kendaraan / Driver</th>
+            <th>Status</th>
+            <th class="req-action-header">Verifikasi Admin</th>
+          </tr>
+        </thead>
+        <tbody id="requestTable"></tbody>
+      </table>
+    </div>
+    <div class="notice" id="requestCount"></div>
+  </div>
+</section>
+
+<section class="section" id="page-vehicles">
+  <div class="welcome"><div><h3>Data Kendaraan Operasional</h3><p>Daftar armada mobil yang terdaftar.</p></div>
+    <div class="actions">
+      <button class="outline" onclick="openImportCsvModal('vehicles')">📥 Import CSV</button>
+      <button class="primary" onclick="openVehicleForm()">＋ Tambah Kendaraan</button>
+    </div>
+  </div>
+  <div class="panel"><div class="toolbar"><div class="search"><input id="vehicleSearch" placeholder="Cari nomor polisi, merek, jenis..." oninput="renderVehicles()"></div><button class="outline" onclick="exportCSV('vehicles')">Ekspor Excel</button></div><div class="tablewrap"><table><thead><tr><th>Nomor Polisi</th><th>Merek / Model</th><th>Jenis</th><th>Kartu BBM</th><th>Driver Default</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div><div class="notice" id="vehicleCount"></div></div>
+</section>
+
+<section class="section" id="page-reports">
+  <div class="welcome"><div><h3>Laporan & Ekspor Data</h3><p>Rekapitulasi lengkap monitoring BBM dan operasional.</p></div><button class="primary" onclick="exportCSV('all')">⇩ Ekspor Semua Data</button></div>
+  <div class="panel" style="margin-bottom:20px"><div class="panel-head"><div><h4>Filter Periode Laporan</h4><p>Filter berdasarkan tanggal pengisian BBM & pengajuan</p></div></div><div class="formwrap"><div class="formgrid"><div><label for="reportFrom">Dari Tanggal</label><input type="date" id="reportFrom"></div><div><label for="reportTo">Sampai Tanggal</label><input type="date" id="reportTo"></div></div><div class="form-actions"><button class="secondary" onclick="clearReportFilter()">Reset Filter</button><button class="primary" onclick="renderReports()">Terapkan Filter</button></div></div></div>
+  <div class="reportcards"><div class="reportcard"><span>Total Pengeluaran BBM</span><strong id="reportSpend">Rp0</strong></div><div class="reportcard"><span>Total Volume BBM</span><strong id="reportVolume">0 L</strong></div><div class="reportcard"><span>Total Transaksi</span><strong id="reportTransactions">0</strong></div></div>
+  <div class="panel" style="margin-bottom:20px"><div class="panel-head"><div><h4>Rekap BBM Per Bidang</h4><p>Penggunaan BBM berdasarkan unit bidang</p></div><button class="outline tiny" onclick="exportCSV('bidang-summary')">Ekspor Rekap Bidang</button></div><div class="tablewrap"><table><thead><tr><th>Bidang</th><th>Jumlah Transaksi</th><th>Total Volume (L)</th><th>Total Nominal (Rp)</th><th>Rata-Rata / Liter</th></tr></thead><tbody id="reportBidangTable"></tbody></table></div></div>
+  <div class="panel" style="margin-bottom:20px"><div class="panel-head"><div><h4>Rekap BBM Per Kendaraan</h4><p>Penggunaan BBM per armada mobil</p></div><button class="outline tiny" onclick="exportCSV('vehicle-summary')">Ekspor Rekap Kendaraan</button></div><div class="tablewrap"><table><thead><tr><th>Kendaraan</th><th>Jumlah Transaksi</th><th>Total Liter</th><th>Total Nominal</th><th>Rata-Rata / Liter</th></tr></thead><tbody id="reportVehicleTable"></tbody></table></div></div>
+</section>
+</div>
+</main>
+</div>
+
+<div class="modalback" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modalhead"><h3 id="modalTitle">Form Header</h3><button class="secondary" onclick="closeModal()">✕</button></div><div class="modalbody" id="modalBody"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='fleetcare_sucofindo_puma_sci_v3';
+let db={vehicles:[],fuel:[],requests:[]};
+let editing={type:null,id:null};
+let currentUser={name:'PUMASCIBDL',role:'user'};
+let selectedLoginRole='user';
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rupiah=n=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
+const num=n=>new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(Number(n)||0);
+const today=()=>{let d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const vehicleLabel=v=>v?`${v.plate} · ${v.model}`:'—';
+
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&Array.isArray(x.vehicles)&&Array.isArray(x.fuel))db=x}catch(e){console.warn(e)}}
+function save(){localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),3000)}
+
+/* --- AUTENTIKASI LOGIN & ROLE MANAGEMENT --- */
+function setLoginRole(role){
+  selectedLoginRole=role;
+  $('btnRoleUser').classList.toggle('active', role==='user');
+  $('btnRoleAdmin').classList.toggle('active', role==='admin');
+  
+  if(role==='admin'){
+    $('loginUsername').value='PUMASCIBDL';
+    $('loginPassword').value='PUMASCIBDL2026';
+    $('passwordGroup').style.display='block';
+  } else {
+    $('loginUsername').value='PUMASCIBDL';
+    $('loginPassword').value='';
+    $('passwordGroup').style.display='none';
+  }
+}
+
+function handleLogin(e){
+  e.preventDefault();
+  const uname = $('loginUsername').value.trim() || 'PUMASCIBDL';
+  const pass = $('loginPassword').value;
+
+  if(selectedLoginRole==='admin'){
+    if(pass !== 'PUMASCIBDL2026'){
+      alert('Password Admin salah! Gunakan: PUMASCIBDL2026');
+      return;
+    }
+  }
+
+  currentUser = { name: uname, role: selectedLoginRole };
+  $('loginOverlay').style.display='none';
+  applyRolePermissions();
+  toast(`Berhasil masuk sebagai ${uname} (${selectedLoginRole==='admin'?'Admin':'User'})`);
+}
+
+function showLoginModal(){
+  $('loginOverlay').style.display='flex';
+}
+
+function applyRolePermissions(){
+  const isAdmin = currentUser.role==='admin';
+  $('currentUserName').textContent = currentUser.name;
+  $('currentUserRole').textContent = isAdmin ? 'ADMIN PUMA SCI' : 'USER OPERASIONAL';
+  $('currentUserAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display = isAdmin ? '' : 'none';
+  });
+
+  const reqActionHeaders = document.querySelectorAll('.req-action-header');
+  reqActionHeaders.forEach(el => el.style.display = isAdmin ? '' : 'none');
+
+  if(!isAdmin){
+    navigate('requests');
+  } else {
+    navigate('dashboard');
+  }
+}
+
+function navigate(page){
+  if(currentUser.role==='user' && (page==='dashboard'||page==='vehicles'||page==='reports')) {
+    page='requests';
+  }
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  $('page-'+page).classList.add('active');
+  document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+  const names={dashboard:'Dashboard',fuel:'Monitoring BBM',requests:'Permintaan Mobil',vehicles:'Data Kendaraan',reports:'Laporan & Ekspor'};
+  $('pageTitle').textContent=names[page];
+  $('crumb').textContent=names[page].toUpperCase();
+  $('sidebar').classList.remove('open');
+  if(page==='reports')renderReports();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.page)));
+$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
+
+function badge(status){const cls={'Menunggu':'b-amber','Disetujui':'b-green','Ditolak':'b-red','Selesai':'b-blue','Aktif':'b-green','Tidak aktif':'b-gray'}[status]||'b-gray';return `<span class="badge ${cls}">${esc(status)}</span>`}
+function vehicleOptions(selected='',activeOnly=false){let vs=db.vehicles.filter(v=>!activeOnly||v.status==='Aktif');return `<option value="">Pilih kendaraan</option>`+vs.map(v=>`<option value="${esc(v.id)}" ${v.id===selected?'selected':''}>${esc(v.plate)} — ${esc(v.model)}</option>`).join('')}
+
+function renderAll(){renderDashboard();renderFuel();renderRequests();renderVehicles();renderMonthOptions();if($('page-reports') && $('page-reports').classList.contains('active'))renderReports()}
+
+function renderMonthOptions(){const sel=$('fuelMonthFilter');if(!sel)return;const old=sel.value;const months=[...new Set(db.fuel.map(f=>(f.date||'').slice(0,7)).filter(Boolean))].sort().reverse();sel.innerHTML='<option value="">Semua bulan</option>'+months.map(m=>`<option value="${m}">${new Date(m+'-02').toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</option>`).join('');sel.value=months.includes(old)?old:''}
+
+function renderDashboard(){
+ const spend=db.fuel.reduce((s,f)=>s+Number(f.amount||0),0),liters=db.fuel.reduce((s,f)=>s+Number(f.liters||0),0),pending=db.requests.filter(r=>r.status==='Menunggu').length,available=db.vehicles.filter(v=>v.status==='Aktif').length;
+ $('statFuel').textContent=rupiah(spend);$('statLiters').textContent=num(liters)+' L';$('statPending').textContent=pending;$('statVehicles').textContent=available;$('statVehicleNote').textContent=`Dari ${db.vehicles.length} kendaraan terdaftar`;
+ 
+ const months=[];let now=new Date();for(let i=5;i>=0;i--){let d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('id-ID',{month:'short'})})}
+ const vals=months.map(m=>db.fuel.filter(f=>(f.date||'').startsWith(m.key)).reduce((s,f)=>s+Number(f.amount||0),0));const max=Math.max(...vals,1);
+ $('fuelChart').innerHTML=months.map((m,i)=>`<div class="bar-col"><div class="bar-val">${vals[i]?new Intl.NumberFormat('id-ID',{notation:'compact',maximumFractionDigits:1}).format(vals[i]):'Rp0'}</div><div class="bar" style="height:${Math.max(4,vals[i]/max*100)}%"></div><div class="bar-label">${m.label}</div></div>`).join('');
+ 
+ const statuses=['Menunggu','Disetujui','Ditolak','Selesai'],colors=['#f59e0b','#10b981','#ef4444','#3b82f6'],counts=statuses.map(s=>db.requests.filter(r=>r.status===s).length),total=db.requests.length;
+ let start=0,parts=counts.map((c,i)=>{let p=total?c/total*100:0,part=`${colors[i]} ${start}% ${start+p}%`;start+=p;return part});
+ $('requestDonut').style.background=total?`conic-gradient(${parts.join(',')})`:'#e2e8f0';$('requestTotal').textContent=total;
+ $('requestLegend').innerHTML=statuses.map((s,i)=>`<div><span><i class="dot" style="background:${colors[i]}"></i>${s}</span><b>${counts[i]}</b></div>`).join('');
+ 
+ let recent=[...db.fuel.map(f=>({date:f.date,type:'Pengisian BBM',person:`[${f.bidang||'BITU'}] ${vehicleLabel(db.vehicles.find(v=>v.id===f.vehicleId))}`,detail:`${num(f.liters)} L · ${rupiah(f.amount)}`,status:f.method||'—',sort:f.date||''})),...db.requests.map(r=>({date:r.createdAt||r.departDate,type:'Permintaan Mobil',person:`${r.requester||'—'} · ${r.division||'—'}`,detail:r.destination||'—',status:r.status,sort:r.createdAt||r.departDate||''}))].sort((a,b)=>b.sort.localeCompare(a.sort)).slice(0,6);
+ $('recentTable').innerHTML=recent.length?recent.map(r=>`<tr><td>${esc(r.date||'—')}</td><td><b>${esc(r.type)}</b></td><td>${esc(r.person)}</td><td>${esc(r.detail)}</td><td>${badge(r.status)}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Belum ada aktivitas tercatat.</td></tr>';
+}
+
+function openModal(title,body){$('modalTitle').textContent=title;$('modalBody').innerHTML=body;$('modalBack').classList.add('show')}
+function closeModal(){$('modalBack').classList.remove('show');editing={type:null,id:null}}
+
+function openFuelForm(fId=null){
+  let f=db.fuel.find(x=>x.id===fId)||{};
+  editing={type:'fuel',id:fId};
+  openModal(fId?'Edit Pengisian BBM':'Tambah Pengisian BBM', `
+  <form id="fuelForm"><div class="formgrid">
+  <div><label>Tanggal Pengisian *</label><input name="date" type="date" required value="${esc(f.date||today())}"></div>
+  <div><label>Bidang *</label><select name="bidang" required>${['BITU','BIP','PDO','DUKBIS'].map(b=>`<option ${(f.bidang||'BITU')===b?'selected':''}>${b}</option>`).join('')}</select></div>
+  <div><label>Kendaraan *</label><select name="vehicleId" required>${vehicleOptions(f.vehicleId||'')}</select></div>
+  <div><label>Nama Pengemudi *</label><input name="driver" required value="${esc(f.driver||'')}" placeholder="Nama driver"></div>
+  <div><label>Metode Pembayaran *</label><select name="method" required><option ${f.method==='Struk / Tunai'?'selected':''}>Struk / Tunai</option><option ${f.method==='Kartu BBM'?'selected':''}>Kartu BBM</option></select></div>
+  <div><label>Jenis BBM *</label><select name="fuelType" required>${['Pertalite','Pertamax','Pertamax Turbo','Solar','Dexlite','Pertamina Dex','Lainnya'].map(x=>`<option ${f.fuelType===x?'selected':''}>${x}</option>`).join('')}</select></div>
+  <div><label>Volume (Liter) *</label><input name="liters" type="number" min="0.01" step="0.01" required value="${esc(f.liters??'')}" placeholder="Contoh: 35.5"></div>
+  <div><label>Nominal (Rp) *</label><input name="amount" type="number" min="0" step="1" required value="${esc(f.amount??'')}" placeholder="Contoh: 350000"></div>
+  <div><label>Odometer / KM *</label><input name="odometer" type="number" min="0" step="1" required value="${esc(f.odometer??'')}" placeholder="KM kendaraan saat isi BBM"></div>
+  <div><label>No. Struk / Kartu</label><input name="reference" value="${esc(f.reference||'')}" placeholder="Nomor referensi"></div>
+  <div><label>Nama SPBU *</label><input name="spbu" required value="${esc(f.spbu||f.station||'')}" placeholder="Contoh: SPBU 24.351.12"></div>
+  <div><label>Lokasi / Kota *</label><input name="location" required value="${esc(f.location||'Bandar Lampung')}" placeholder="Contoh: Bandar Lampung"></div>
+
+  <div class="full" style="background:#f8fafc;padding:16px;border-radius:14px;border:1px solid #e2e8f0;margin-top:4px">
+    <label style="color:#2563eb;margin-bottom:10px">📷 Lampiran File Bukti Transaksi</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <span style="font-size:11px;font-weight:700;color:#64748b">Bukti 1: Struk / Nota Transaksi</span>
+        <div class="upload-box" onclick="$('photo1Input').click()">
+          <span style="font-size:12px;color:#64748b">Klik upload foto struk</span>
+          <input type="file" id="photo1Input" accept="image/*" hidden onchange="handleImageUpload(this, 'imgPreview1', 'imgData1')">
+          <img id="imgPreview1" class="preview-img" src="${f.photo1||''}" style="${f.photo1?'display:block':''}">
+          <input type="hidden" name="photo1" id="imgData1" value="${f.photo1||''}">
+        </div>
+      </div>
+      <div>
+        <span style="font-size:11px;font-weight:700;color:#64748b">Bukti 2: Odometer / Dashboard</span>
+        <div class="upload-box" onclick="$('photo2Input').click()">
+          <span style="font-size:12px;color:#64748b">Klik upload foto KM/SPBU</span>
+          <input type="file" id="photo2Input" accept="image/*" hidden onchange="handleImageUpload(this, 'imgPreview2', 'imgData2')">
+          <img id="imgPreview2" class="preview-img" src="${f.photo2||''}" style="${f.photo2?'display:block':''}">
+          <input type="hidden" name="photo2" id="imgData2" value="${f.photo2||''}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="full"><label>Catatan</label><textarea name="notes" rows="2" placeholder="Keterangan tambahan">${esc(f.notes||'')}</textarea></div>
+  </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button class="primary" type="submit">Simpan Pengisian</button></div></form>`);
+
+  $('fuelForm').onsubmit=e=>{
+    e.preventDefault();
+    let d=Object.fromEntries(new FormData(e.target));
+    d.liters=Number(d.liters);
+    d.amount=Number(d.amount);
+    d.odometer=Number(d.odometer);
+    if(fId){ db.fuel=db.fuel.map(x=>x.id===fId?{...x,...d}:x); }
+    else db.fuel.push({id:id(),...d});
+    save();closeModal();toast('Data pengisian BBM berhasil disimpan 🎉');
+  }
+}
+
+function handleImageUpload(input, previewId, dataHolderId) {
+  if (input.files && input.files[0]) {
+    let file = input.files[0];
+    let reader = new FileReader();
+    reader.onload = function (e) {
+      $(previewId).src = e.target.result;
+      $(previewId).style.display = 'block';
+      $(dataHolderId).value = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function renderFuel(){
+  if(!$('fuelTable'))return;
+  const q=$('fuelSearch').value.toLowerCase(),bFilter=$('fuelBidangFilter').value,method=$('fuelMethodFilter').value,month=$('fuelMonthFilter').value;
+  let rows=db.fuel.filter(f=>{
+    let v=db.vehicles.find(x=>x.id===f.vehicleId)||{};
+    let str=[f.bidang||'BITU',v.plate,v.model,f.driver,f.reference,f.spbu,f.location,f.fuelType,f.method].join(' ').toLowerCase();
+    return str.includes(q)&&(!bFilter||(f.bidang||'BITU')===bFilter)&&(!method||f.method===method)&&(!month||(f.date||'').startsWith(month));
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const isAdmin = currentUser.role==='admin';
+
+  $('fuelTable').innerHTML=rows.length?rows.map(f=>{
+    let v=db.vehicles.find(x=>x.id===f.vehicleId);
+    let countPhotos = (f.photo1?1:0) + (f.photo2?1:0);
+    let photoBadge = countPhotos > 0 ? `<span class="badge b-green">📷 ${countPhotos} Foto</span>` : `<span class="badge b-gray">Tanpa Foto</span>`;
+    return `<tr>
+      <td>${esc(f.date)}</td>
+      <td><span class="badge b-blue">${esc(f.bidang||'BITU')}</span></td>
+      <td><b>${esc(v?.plate||'Kendaraan Dihapus')}</b><br><span style="color:#64748b;font-size:11px">${esc(v?.model||'')}</span></td>
+      <td>${esc(f.driver)}</td>
+      <td><b>${esc(f.spbu||f.station||'—')}</b><br><span style="color:#64748b;font-size:11px">${esc(f.location||'—')}</span></td>
+      <td>${num(f.liters)} L<br><span style="color:#64748b;font-size:11px">${esc(f.fuelType)}</span></td>
+      <td><b style="color:#2563eb">${rupiah(f.amount)}</b></td>
+      <td>${photoBadge}</td>
+      <td><div class="rowactions">
+        <button class="primary tiny" onclick="printFuel('${f.id}')">🖨️ Print</button>
+        ${isAdmin ? `<button class="outline tiny" onclick="openFuelForm('${f.id}')">Edit</button><button class="danger tiny" onclick="deleteItem('fuel','${f.id}')">Hapus</button>` : ''}
+      </div></td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="9" class="empty">Belum ada data pengisian BBM.</td></tr>';
+  $('fuelCount').textContent=`Menampilkan ${rows.length} dari ${db.fuel.length} transaksi · Total nominal: ${rupiah(rows.reduce((s,x)=>s+x.amount,0))}`;
+}
+
+function printFuel(fId){
+ const f=db.fuel.find(x=>x.id===fId);if(!f){toast('Data transaksi tidak ditemukan.');return}
+ const v=db.vehicles.find(x=>x.id===f.vehicleId)||{};
+ const w=window.open('','_blank','width=850,height=950');
+ if(!w){toast('Izinkan pop-up browser untuk mencetak transaksi.');return}
+ 
+ const rows=[
+  ['Tanggal Pengisian', f.date||'—'],
+  ['Bidang Operasional', f.bidang||'BITU'],
+  ['Kendaraan', `${v.plate||'Kendaraan Dihapus'} ${v.model?' ('+v.model+')':''}`],
+  ['Pengemudi / Driver', f.driver||'—'],
+  ['Metode Pembayaran', f.method||'—'],
+  ['Jenis Bahan Bakar (BBM)', f.fuelType||'—'],
+  ['Volume BBM', `${num(f.liters)} Liter`],
+  ['Total Nominal', rupiah(f.amount)],
+  ['Odometer Kendaraan', `${num(f.odometer)} KM`],
+  ['Nomor Struk / Referensi', f.reference||'—'],
+  ['Nama SPBU', f.spbu||f.station||'—'],
+  ['Lokasi / Kota', f.location||'—'],
+  ['Catatan Transaksi', f.notes||'—']
+ ];
+ 
+ const body=rows.map(([label,value])=>`<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join('');
+ 
+ let photosHtml = '';
+ if (f.photo1 || f.photo2) {
+   photosHtml = `<div class="photo-section">
+     <h3>Lampiran Foto Bukti Transaksi</h3>
+     <div class="photo-grid">
+       ${f.photo1 ? `<div><img src="${f.photo1}"><p>Bukti Struk / Nota Transaksi</p></div>` : ''}
+       ${f.photo2 ? `<div><img src="${f.photo2}"><p>Bukti Odometer / SPBU / Kendaraan</p></div>` : ''}
+     </div>
+   </div>`;
+ }
+
+ w.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Bukti Pengisian BBM - PT SUCOFINDO PUMA SCI</title><style>
+ body{font-family:'Plus Jakarta Sans',Segoe UI,Arial,sans-serif;color:#0f172a;padding:40px;max-width:800px;margin:auto;background:#fff}
+ .header-print{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1e3a8a;padding-bottom:16px;margin-bottom:24px}
+ .brand-title h1{font-size:18px;margin:0;color:#1e3a8a;font-weight:800;letter-spacing:-0.5px}
+ .brand-title h2{font-size:12px;color:#2563eb;margin:4px 0 0;font-weight:700}
+ .doc-title{text-align:center;margin-bottom:24px}
+ .doc-title h3{font-size:16px;margin:0;text-transform:uppercase;letter-spacing:1px;color:#0f172a}
+ table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px}
+ th,td{text-align:left;padding:10px 14px;border:1px solid #cbd5e1;vertical-align:top}
+ th{width:38%;background:#f8fafc;color:#334155;font-weight:700}
+ .photo-section{margin-top:24px;border-top:1.5px dashed #cbd5e1;padding-top:20px;page-break-inside:avoid}
+ .photo-section h3{font-size:14px;margin:0 0 14px;color:#1e3a8a}
+ .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+ .photo-grid img{width:100%;height:220px;object-fit:cover;border:1px solid #cbd5e1;border-radius:8px}
+ .photo-grid p{font-size:11px;color:#64748b;text-align:center;margin:6px 0 0;font-weight:600}
+ .signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center;font-size:12px;page-break-inside:avoid}
+ .sig-box{padding-top:60px;border-top:1px solid #000;width:70%;margin:auto;font-weight:700}
+ .foot{margin-top:40px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #f1f5f9;padding-top:12px}
+ </style></head><body>
+ <div class="header-print">
+   <div class="brand-title">
+     <h1>PT SUCOFINDO (PERSERO)</h1>
+     <h2>PUMA SCI BANDAR LAMPUNG</h2>
+   </div>
+ </div>
+ <div class="doc-title">
+   <h3>Bukti Monitoring Pengisian BBM</h3>
+   <p>Nomor Dokumen Sistem: BMT-${f.id.toUpperCase()}</p>
+ </div>
+ <table>${body}</table>
+ ${photosHtml}
+ <div class="signatures">
+   <div><p>Pengemudi / Pemohon</p><div class="sig-box">${esc(f.driver||'—')}</div></div>
+   <div><p>Petugas / Admin Kendaraan</p><div class="sig-box">PT SUCOFINDO PUMA SCI</div></div>
+ </div>
+ <script>window.onload=()=>{window.print()}<\/script>
+ </body></html>`);
+ w.document.close();
+}
+
+function openRequestForm(rId=null){
+  let r=db.requests.find(x=>x.id===rId)||{};
+  editing={type:'requests',id:rId};
+  const isAdmin = currentUser.role==='admin';
+
+  openModal(rId?'Edit Permintaan Mobil':'Pengajuan Permintaan Mobil Baru', `
+  <form id="requestForm"><div class="formgrid">
+  <div><label>Tanggal Pengajuan *</label><input name="createdAt" type="date" required value="${esc(r.createdAt||today())}"></div>
+  <div><label>Nama Pemohon *</label><input name="requester" required value="${esc(r.requester||(currentUser.role==='user'?currentUser.name:''))}" placeholder="Nama pegawai"></div>
+  <div><label>Divisi / Unit Kerja *</label><input name="division" required value="${esc(r.division||'')}" placeholder="Contoh: Operasional / PUMA SCI"></div>
+  <div><label>Nomor Kontak</label><input name="contact" value="${esc(r.contact||'')}" placeholder="No. Telp / HP"></div>
+  <div class="full"><label>Tujuan Perjalanan *</label><input name="destination" required value="${esc(r.destination||'')}" placeholder="Kota / Lokasi Tujuan"></div>
+  <div class="full"><label>Keperluan Perjalanan *</label><textarea name="purpose" required rows="2" placeholder="Detail dinas operasional">${esc(r.purpose||'')}</textarea></div>
+  <div><label>Tanggal Berangkat *</label><input name="departDate" type="date" required value="${esc(r.departDate||today())}"></div>
+  <div><label>Jam Berangkat *</label><input name="departTime" type="time" required value="${esc(r.departTime||'08:00')}"></div>
+  <div><label>Tanggal Kembali *</label><input name="returnDate" type="date" required value="${esc(r.returnDate||r.departDate||today())}"></div>
+  <div><label>Jam Kembali *</label><input name="returnTime" type="time" required value="${esc(r.returnTime||'17:00')}"></div>
+
+  ${isAdmin ? `
+    <div><label>Pilih Kendaraan (Admin)</label><select name="vehicleId">${vehicleOptions(r.vehicleId||'',true)}</select></div>
+    <div><label>Driver Ditugaskan (Admin)</label><input name="driver" value="${esc(r.driver||'')}" placeholder="Nama driver"></div>
+    <div><label>Status Persetujuan</label><select name="status">${['Menunggu','Disetujui','Ditolak','Selesai'].map(s=>`<option ${((r.status||'Menunggu')===s)?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div><label>Admin Penanggung Jawab</label><input name="admin" value="${esc(r.admin||currentUser.name)}" placeholder="Nama admin"></div>
+    <div class="full"><label>Catatan Persetujuan Admin</label><textarea name="adminNotes" rows="2">${esc(r.adminNotes||'')}</textarea></div>
+  ` : `
+    <input type="hidden" name="vehicleId" value="${fEsc(r.vehicleId||'')}">
+    <input type="hidden" name="driver" value="${fEsc(r.driver||'')}">
+    <input type="hidden" name="status" value="${fEsc(r.status||'Menunggu')}">
+    <input type="hidden" name="admin" value="${fEsc(r.admin||'')}">
+    <input type="hidden" name="adminNotes" value="${fEsc(r.adminNotes||'')}">
+    <div class="full" style="background:#f1f5f9;padding:12px;border-radius:10px;font-size:12px;color:#475569">
+      <b>Status Pengajuan saat ini:</b> ${badge(r.status||'Menunggu')}<br>
+      <i>* Pemilihan armada mobil & pengemudi akan diverifikasi oleh Admin PUMA SCI.</i>
+    </div>
+  `}
+
+  </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button class="primary" type="submit">Kirim Pengajuan</button></div></form>`);
+
+  $('requestForm').onsubmit=e=>{
+    e.preventDefault();
+    let d=Object.fromEntries(new FormData(e.target));
+    if(d.returnDate<d.departDate){toast('Tanggal kembali tidak boleh sebelum tanggal berangkat.');return}
+    if(rId){db.requests=db.requests.map(x=>x.id===rId?{...x,...d}:x)}else db.requests.push({id:id(),...d});
+    save();closeModal();toast('Permintaan mobil berhasil disimpan ✨');
+  }
+}
+
+function fEsc(val){ return esc(val||''); }
+
+function renderRequests(){
+  if(!$('requestTable'))return;
+  const isAdmin = currentUser.role==='admin';
+  let q=$('requestSearch').value.toLowerCase(),st=$('requestStatusFilter').value;
+  let rows=db.requests.filter(r=>[r.requester,r.division,r.destination,r.purpose,r.driver,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId))].join(' ').toLowerCase().includes(q)&&(!st||r.status===st)).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  
+  $('requestTable').innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${esc(r.createdAt||'—')}</td>
+    <td><b>${esc(r.requester)}</b><br><span style="color:#64748b;font-size:11px">${esc(r.division)}</span></td>
+    <td><b>${esc(r.destination)}</b><br><span style="color:#64748b;font-size:11px">${esc(r.purpose)}</span></td>
+    <td>${esc(r.departDate)} ${esc(r.departTime)}<br><span style="color:#64748b;font-size:11px">s/d ${esc(r.returnDate)} ${esc(r.returnTime)}</span></td>
+    <td>${esc(vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)))}<br><span style="color:#64748b;font-size:11px">${esc(r.driver||'Driver belum diisi')}</span></td>
+    <td>${badge(r.status)}</td>
+    ${isAdmin ? `<td><div class="rowactions">
+      <button class="outline tiny" onclick="openRequestForm('${r.id}')">Edit</button>
+      ${r.status==='Menunggu'?`<button class="success tiny" onclick="quickStatus('${r.id}','Disetujui')">Setujui</button><button class="danger tiny" onclick="quickStatus('${r.id}','Ditolak')">Tolak</button>`:r.status==='Disetujui'?`<button class="primary tiny" onclick="quickStatus('${r.id}','Selesai')">Selesai</button>`:''}
+      <button class="danger tiny" onclick="deleteItem('requests','${r.id}')">Hapus</button>
+    </div></td>` : ''}
+  </tr>`).join(''):`<tr><td colspan="${isAdmin?7:6}" class="empty">Belum ada permintaan kendaraan.</td></tr>`;
+  $('requestCount').textContent=`Menampilkan ${rows.length} dari ${db.requests.length} permintaan`;
+}
+
+function quickStatus(rId,status){
+  let r=db.requests.find(x=>x.id===rId);if(!r)return;
+  if(status==='Ditolak'){let reason=prompt('Alasan penolakan:',r.adminNotes||'');if(reason===null)return;r.adminNotes=reason}
+  if(status==='Disetujui'){let admin=prompt('Nama admin penanggung jawab:',r.admin||currentUser.name);if(admin===null)return;r.admin=admin}
+  r.status=status;save();toast('Status diperbarui menjadi '+status);
+}
+
+function openVehicleForm(vId=null){
+  let v=db.vehicles.find(x=>x.id===vId)||{};
+  openModal(vId?'Edit Kendaraan':'Tambah Kendaraan Baru',`<form id="vehicleForm"><div class="formgrid">
+  <div><label>Nomor Polisi *</label><input name="plate" required value="${esc(v.plate||'')}" placeholder="Contoh: BE 1234 XX"></div>
+  <div><label>Merek / Model *</label><input name="model" required value="${esc(v.model||'')}" placeholder="Contoh: Toyota Avanza"></div>
+  <div><label>Jenis Kendaraan *</label><select name="type">${['MPV','SUV','Sedan','Pickup','Minibus','Lainnya'].map(x=>`<option ${v.type===x?'selected':''}>${x}</option>`).join('')}</select></div>
+  <div><label>Nomor Kartu BBM</label><input name="card" value="${esc(v.card||'')}" placeholder="No. Kartu BBM"></div>
+  <div><label>Driver Default</label><input name="driver" value="${esc(v.driver||'')}" placeholder="Nama driver utama"></div>
+  <div><label>Status</label><select name="status"><option ${(!v.status||v.status==='Aktif')?'selected':''}>Aktif</option><option ${v.status==='Tidak aktif'?'selected':''}>Tidak aktif</option></select></div>
+  </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Simpan Kendaraan</button></div></form>`);
+
+  $('vehicleForm').onsubmit=e=>{
+    e.preventDefault();
+    let d=Object.fromEntries(new FormData(e.target));
+    d.plate=d.plate.trim().toUpperCase();
+    if(vId)db.vehicles=db.vehicles.map(x=>x.id===vId?{...x,...d}:x);else db.vehicles.push({id:id(),...d});
+    save();closeModal();toast('Data kendaraan berhasil disimpan 🚙');
+  }
+}
+
+function renderVehicles(){
+  if(!$('vehicleTable'))return;
+  let q=$('vehicleSearch').value.toLowerCase();
+  let rows=db.vehicles.filter(v=>[v.plate,v.model,v.type,v.card,v.driver,v.status].join(' ').toLowerCase().includes(q));
+  $('vehicleTable').innerHTML=rows.length?rows.map(v=>`<tr>
+    <td><b>${esc(v.plate)}</b></td>
+    <td>${esc(v.model)}</td>
+    <td>${esc(v.type)}</td>
+    <td>${esc(v.card||'—')}</td>
+    <td>${esc(v.driver||'—')}</td>
+    <td>${badge(v.status)}</td>
+    <td><div class="rowactions"><button class="outline tiny" onclick="openVehicleForm('${v.id}')">Edit</button><button class="danger tiny" onclick="deleteItem('vehicles','${v.id}')">Hapus</button></div></td>
+  </tr>`).join(''):'<tr><td colspan="7" class="empty">Belum ada armada kendaraan.</td></tr>';
+  $('vehicleCount').textContent=`Menampilkan ${rows.length} dari ${db.vehicles.length} kendaraan`;
+}
+
+function deleteItem(type,itemId){
+  if(!confirm('Yakin ingin menghapus data ini?'))return;
+  db[type]=db[type].filter(x=>x.id!==itemId);
+  save();toast('Data berhasil dihapus.');
+}
+
+function dateInRange(d,from,to){return (!from||d>=from)&&(!to||d<=to)}
+function reportFuel(){return db.fuel.filter(f=>dateInRange(f.date||'', $('reportFrom').value,$('reportTo').value))}
+
+function renderReports(){
+ let fs=reportFuel();
+ $('reportSpend').textContent=rupiah(fs.reduce((s,x)=>s+Number(x.amount||0),0));
+ $('reportVolume').textContent=num(fs.reduce((s,x)=>s+Number(x.liters||0),0))+' L';
+ $('reportTransactions').textContent=fs.length;
+ 
+ const bidangList=['BITU','BIP','PDO','DUKBIS'];
+ let bData={};bidangList.forEach(b=>{bData[b]={count:0,liters:0,amount:0}});
+ fs.forEach(f=>{
+  let bd=f.bidang||'BITU';if(!bData[bd])bData[bd]={count:0,liters:0,amount:0};
+  bData[bd].count++;bData[bd].liters+=Number(f.liters||0);bData[bd].amount+=Number(f.amount||0);
+ });
+ $('reportBidangTable').innerHTML=bidangList.map(b=>{
+  let d=bData[b];
+  return `<tr><td><b>${esc(b)}</b></td><td>${d.count}</td><td>${num(d.liters)} L</td><td>${rupiah(d.amount)}</td><td>${d.liters?rupiah(d.amount/d.liters):rupiah(0)}</td></tr>`;
+ }).join('');
+
+ let by={};
+ fs.forEach(f=>{let v=db.vehicles.find(x=>x.id===f.vehicleId),name=v?`${v.plate} — ${v.model}`:'Kendaraan dihapus';if(!by[name])by[name]={count:0,liters:0,amount:0};by[name].count++;by[name].liters+=Number(f.liters||0);by[name].amount+=Number(f.amount||0)});
+ let entries=Object.entries(by).sort((a,b)=>b[1].amount-a[1].amount);
+ $('reportVehicleTable').innerHTML=entries.length?entries.map(([n,x])=>`<tr><td>${esc(n)}</td><td>${x.count}</td><td>${num(x.liters)} L</td><td>${rupiah(x.amount)}</td><td>${x.liters?rupiah(x.amount/x.liters):rupiah(0)}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Belum ada data periode ini.</td></tr>';
+}
+
+function clearReportFilter(){$('reportFrom').value='';$('reportTo').value='';renderReports()}
+function csvCell(v){let s=String(v??'');if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function downloadCSV(name,headers,rows){const csv='\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(';')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SUCOFINDO_PUMA_SCI_${name}_${today()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('File CSV Excel berhasil diekspor.')}
+
+function openImportCsvModal(defaultType='fuel'){
+  openModal('Import Data dari File CSV', `
+    <div style="font-size:13px;line-height:1.6;color:var(--text-main)">
+      <p style="margin-top:0">Pilih jenis data yang ingin Anda impor secara masal:</p>
+      <div style="margin-bottom:15px">
+        <label><b>Jenis Data Import</b></label>
+        <select id="csvImportType">
+          <option value="vehicles" ${defaultType==='vehicles'?'selected':''}>Data Kendaraan</option>
+          <option value="fuel" ${defaultType==='fuel'?'selected':''}>Monitoring BBM</option>
+          <option value="requests" ${defaultType==='requests'?'selected':''}>Permintaan Mobil</option>
+        </select>
+      </div>
+      <div style="margin-bottom:20px">
+        <label><b>Pilih File CSV (.csv)</b></label>
+        <input type="file" id="modalCsvFile" accept=".csv">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="secondary" onclick="closeModal()">Batal</button>
+        <button type="button" class="primary" onclick="processCsvImport()">Proses Import Data</button>
+      </div>
+    </div>
+  `);
+}
+
+function exportCSV(kind){
+ if(kind==='fuel'){
+  downloadCSV('Monitoring_BBM',['Tanggal','Bidang','Nomor Polisi','Merek/Model','Pengemudi','Metode','Jenis BBM','Liter','Nominal Rupiah','Odometer KM','Referensi','SPBU','Lokasi','Catatan'],db.fuel.map(f=>{let v=db.vehicles.find(x=>x.id===f.vehicleId)||{};return [f.date,f.bidang||'BITU',v.plate,v.model,f.driver,f.method,f.fuelType,f.liters,f.amount,f.odometer,f.reference,f.spbu||f.station,f.location,f.notes]}))
+ } else if(kind==='vehicles'){
+  downloadCSV('Data_Kendaraan',['Nomor Polisi','Merek/Model','Jenis','Nomor Kartu BBM','Driver Default','Status'],db.vehicles.map(v=>[v.plate,v.model,v.type,v.card,v.driver,v.status]))
+ } else if(kind==='requests'){
+  downloadCSV('Permintaan_Mobil',['Tanggal Pengajuan','Pemohon','Divisi','Kontak','Tujuan','Keperluan','Tanggal Berangkat','Jam Berangkat','Tanggal Kembali','Jam Kembali','Nomor Polisi','Pengemudi','Status','Admin','Catatan Admin'],db.requests.map(r=>{let v=db.vehicles.find(x=>x.id===r.vehicleId)||{};return [r.createdAt,r.requester,r.division,r.contact,r.destination,r.purpose,r.departDate,r.departTime,r.returnDate,r.returnTime,v.plate,r.driver,r.status,r.admin,r.adminNotes]}))
+ } else if(kind==='all'){
+  exportCSV('vehicles');setTimeout(()=>exportCSV('fuel'),300);
+ }
+}
+
+$('backupBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify({...db,backupCreatedAt:new Date().toISOString(),app:'SucofindoPumaSciBdl'},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SUCOFINDO_PUMA_SCI_Backup_${today()}.json`;a.click();URL.revokeObjectURL(a.href);toast('Backup data JSON berhasil diunduh.');
+};
+$('restoreBtn').onclick=()=>$('restoreFile').click();
+$('restoreFile').onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const x=JSON.parse(await file.text());
+    if(!Array.isArray(x.vehicles)||!Array.isArray(x.fuel))throw new Error('Format file tidak sesuai');
+    if(!confirm('Import backup akan mengganti data saat ini. Lanjutkan?'))return;
+    db={vehicles:x.vehicles,fuel:x.fuel,requests:x.requests||[]};save();toast('Backup berhasil diimpor.');
+  }catch(err){alert('Gagal impor backup: '+err.message)}finally{e.target.value=''}
+};
+
+load();
+renderAll();
+setLoginRole('user');
+showLoginModal();
+</script>
+</body>
+</html>
