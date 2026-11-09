@@ -705,7 +705,8 @@ function load(){
 }
 
 function save(){
-  localStorage.setItem(KEY, JSON.stringify(db));
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e) { alert('Penyimpanan browser penuh, data terbaru BELUM tersimpan permanen.\n\nSegera ekspor Backup JSON, lalu kurangi data/foto lama.'); }
   renderAll();
 }
 
@@ -1121,15 +1122,29 @@ function openFuelForm(fId=null) {
 
 function handleImageUpload(input, previewId, dataHolderId) {
   if (input.files && input.files[0]) {
-    let file = input.files[0];
-    let reader = new FileReader();
-    reader.onload = function (e) {
-      $(previewId).src = e.target.result;
+    compressImage(input.files[0], function (dataUrl) {
+      $(previewId).src = dataUrl;
       $(previewId).style.display = 'block';
-      $(dataHolderId).value = e.target.result;
-    };
-    reader.readAsDataURL(file);
+      $(dataHolderId).value = dataUrl;
+    }, 900);
   }
+}
+
+// Perkecil foto lama (data URL) agar muat di penyimpanan browser
+function shrinkImage(dataUrl) {
+  return new Promise(resolve => {
+    if (!dataUrl || !String(dataUrl).startsWith('data:image') || dataUrl.length < 120000) return resolve(dataUrl);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 900 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.65));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 function renderFuel() {
@@ -1595,13 +1610,23 @@ $('restoreBtn').onclick = () => { if (requireAdmin()) $('restoreFile').click(); 
 $('restoreFile').onchange = async e => {
   if (!requireAdmin()) return;
   const file = e.target.files[0]; if(!file) return;
+  const oldDb = db;
   try {
     const x = JSON.parse(await file.text());
     if(!Array.isArray(x.vehicles) || !Array.isArray(x.fuel)) throw new Error('Format file tidak sesuai');
     if(!confirm('Import backup akan mengganti data saat ini. Lanjutkan?')) return;
-    db = { vehicles: x.vehicles, fuel: x.fuel, requests: x.requests||[], etoll: x.etoll||[] };
-    save(); toast('Backup berhasil diimpor.');
-  } catch(err) { alert('Gagal impor backup: ' + err.message); }
+    toast('Mengompres foto, mohon tunggu...');
+    const fuel = [];
+    for (const f of x.fuel) fuel.push({ ...f, photo1: await shrinkImage(f.photo1), photo2: await shrinkImage(f.photo2) });
+    const etoll = [];
+    for (const r of (x.etoll || [])) etoll.push({ ...r, proof: await shrinkImage(r.proof) });
+    const next = { vehicles: x.vehicles, fuel, requests: x.requests || [], etoll };
+    localStorage.setItem(KEY, JSON.stringify(next));
+    db = next; renderAll(); toast('Backup berhasil diimpor.');
+  } catch(err) {
+    db = oldDb;
+    alert('Gagal impor backup: ' + err.message + (/quota/i.test(err.message) ? '\n\nData backup terlalu besar untuk penyimpanan browser meskipun fotonya sudah dikompres. Data lama kamu tidak berubah.' : ''));
+  }
   finally { e.target.value = ''; }
 };
 
