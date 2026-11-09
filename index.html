@@ -1253,6 +1253,80 @@ function renderFuel() {
   $('fuelCount').textContent = `Menampilkan ${rows.length} dari ${db.fuel.length} transaksi · Total nominal disetujui: ${rupiah(rows.filter(fuelApproved).reduce((s,x)=>s+x.amount,0))}`;
 }
 
+const PRINT_CSS = `
+ body{font-family:'Plus Jakarta Sans',Segoe UI,Arial,sans-serif;color:#0f172a;padding:40px;max-width:800px;margin:auto;background:#fff}
+ .header-print{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1e3a8a;padding-bottom:16px;margin-bottom:24px}
+ .brand-title h1{font-size:18px;margin:0;color:#1e3a8a;font-weight:800;letter-spacing:-0.5px}
+ .brand-title h2{font-size:12px;color:#2563eb;margin:4px 0 0;font-weight:700}
+ .doc-title{text-align:center;margin-bottom:24px}
+ .doc-title h3{font-size:16px;margin:0;text-transform:uppercase;letter-spacing:1px;color:#0f172a}
+ table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px}
+ th,td{text-align:left;padding:10px 14px;border:1px solid #cbd5e1;vertical-align:top}
+ th{width:38%;background:#f8fafc;color:#334155;font-weight:700}
+ .photo-section{margin-top:24px;border-top:1.5px dashed #cbd5e1;padding-top:20px;page-break-inside:avoid}
+ .photo-section h3{font-size:14px;margin:0 0 14px;color:#1e3a8a}
+ .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+ .photo-grid img{width:100%;height:220px;object-fit:cover;border:1px solid #cbd5e1;border-radius:8px}
+ .photo-grid p{font-size:11px;color:#64748b;text-align:center;margin:6px 0 0;font-weight:600}
+ .signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center;font-size:12px;page-break-inside:avoid}
+ .sig-box{padding-top:60px;border-top:1px solid #000;width:70%;margin:auto;font-weight:700}
+ .logo{height:62px;width:auto;object-fit:contain}
+ .status-chip{display:inline-block;padding:3px 10px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-weight:700;font-size:12px}
+ .total-row th,.total-row td{background:#eff6ff;font-weight:800;color:#1e3a8a;font-size:14px}
+`;
+
+function logoUri() { const i = document.querySelector('img[alt="Logo Sucofindo"]'); return i ? i.src : ''; }
+function printHeader() {
+  return `<div class="header-print">
+   <div class="brand-title"><h1>PT SUCOFINDO (PERSERO)</h1><h2>PUMA SCI BANDAR LAMPUNG</h2></div>
+   <img class="logo" src="${esc(logoUri())}" alt="SUCOFINDO">
+ </div>`;
+}
+
+function printEtoll(rId) {
+  if (!requireAdmin()) return;
+  const r = (db.etoll || []).find(x => x.id === rId);
+  if (!r) { toast('Data permintaan tidak ditemukan.'); return; }
+  const v = db.vehicles.find(x => x.id === r.vehicleId) || {};
+  const w = window.open('', '_blank', 'width=850,height=950');
+  if (!w) { toast('Izinkan pop-up browser untuk mencetak bukti.'); return; }
+  const hasAfter = r.balanceAfter != null && r.balanceAfter !== '';
+  const rows = [
+    ['Tanggal Pengajuan', r.createdAt || '—'],
+    ['Nama Pemohon', r.requester || '—'],
+    ['Bidang / Divisi', r.division || '—'],
+    ['Nomor Kartu E-Toll', r.card || '—'],
+    ['Kendaraan', v.plate ? `${v.plate} (${v.model || ''})` : '—'],
+    ['Keperluan / Rute', r.purpose || '—'],
+    ['Nominal Diminta', rupiah(r.amount)],
+    ['Saldo Sebelum Top-up', rupiah(r.balance)],
+    ['Saldo Setelah Top-up', hasAfter ? rupiah(r.balanceAfter) : '—'],
+  ];
+  const body = rows.map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('') +
+    `<tr class="total-row"><th>Total Isi Saldo</th><td>${hasAfter ? rupiah(r.balanceAfter - r.balance) : (r.topupAmount ? rupiah(r.topupAmount) : '—')}</td></tr>` +
+    [['Tanggal Pengisian', r.topupDate || '—'], ['Status', r.status || '—'], ['Disetujui oleh', r.admin || '—'], ['Catatan Admin', r.adminNotes || '—']]
+      .map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('');
+  let photos = '';
+  if (r.photo1 || r.proof) {
+    photos = `<div class="photo-section"><h3>Lampiran Foto</h3><div class="photo-grid">
+      ${r.photo1 ? `<div><img src="${esc(r.photo1)}"><p>Foto Saldo Kartu Sebelum Top-up</p></div>` : ''}
+      ${r.proof ? `<div><img src="${esc(r.proof)}"><p>Bukti Setelah Top-up${r.proofDate ? ' (' + esc(r.proofDate) + ')' : ''}</p></div>` : ''}
+    </div></div>`;
+  }
+  w.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Bukti Permintaan E-Toll - PT SUCOFINDO PUMA SCI</title><style>${PRINT_CSS}</style></head><body>
+ ${printHeader()}
+ <div class="doc-title"><h3>Bukti Permintaan E-Toll</h3><p>Nomor Dokumen Sistem: ETL-${esc(String(r.id).toUpperCase())}</p></div>
+ <table>${body}</table>
+ ${photos}
+ <div class="signatures">
+   <div><p>Pemohon</p><div class="sig-box">${esc(r.requester || '—')}</div></div>
+   <div><p>Petugas / Admin</p><div class="sig-box">${esc(r.admin || 'PT SUCOFINDO PUMA SCI')}</div></div>
+ </div>
+ <script>window.onload=()=>{window.print()}<\/script>
+ </body></html>`);
+  w.document.close();
+}
+
 function printFuel(fId) {
  const f = db.fuel.find(x => x.id === fId);
  if (!f) { toast('Data transaksi tidak ditemukan.'); return; }
@@ -1283,36 +1357,14 @@ function printFuel(fId) {
    photosHtml = `<div class="photo-section">
      <h3>Lampiran Foto Bukti Transaksi</h3>
      <div class="photo-grid">
-       ${f.photo1 ? `<div><img src="${f.photo1}"><p>Bukti Struk / Nota Transaksi</p></div>` : ''}
-       ${f.photo2 ? `<div><img src="${f.photo2}"><p>Bukti Odometer / SPBU / Kendaraan</p></div>` : ''}
+       ${f.photo1 ? `<div><img src="${esc(f.photo1)}"><p>Bukti Struk / Nota Transaksi</p></div>` : ''}
+       ${f.photo2 ? `<div><img src="${esc(f.photo2)}"><p>Bukti Odometer / SPBU / Kendaraan</p></div>` : ''}
      </div>
    </div>`;
  }
 
- w.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Bukti Pengisian BBM - PT SUCOFINDO PUMA SCI</title><style>
- body{font-family:'Plus Jakarta Sans',Segoe UI,Arial,sans-serif;color:#0f172a;padding:40px;max-width:800px;margin:auto;background:#fff}
- .header-print{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1e3a8a;padding-bottom:16px;margin-bottom:24px}
- .brand-title h1{font-size:18px;margin:0;color:#1e3a8a;font-weight:800;letter-spacing:-0.5px}
- .brand-title h2{font-size:12px;color:#2563eb;margin:4px 0 0;font-weight:700}
- .doc-title{text-align:center;margin-bottom:24px}
- .doc-title h3{font-size:16px;margin:0;text-transform:uppercase;letter-spacing:1px;color:#0f172a}
- table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px}
- th,td{text-align:left;padding:10px 14px;border:1px solid #cbd5e1;vertical-align:top}
- th{width:38%;background:#f8fafc;color:#334155;font-weight:700}
- .photo-section{margin-top:24px;border-top:1.5px dashed #cbd5e1;padding-top:20px;page-break-inside:avoid}
- .photo-section h3{font-size:14px;margin:0 0 14px;color:#1e3a8a}
- .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
- .photo-grid img{width:100%;height:220px;object-fit:cover;border:1px solid #cbd5e1;border-radius:8px}
- .photo-grid p{font-size:11px;color:#64748b;text-align:center;margin:6px 0 0;font-weight:600}
- .signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;text-align:center;font-size:12px;page-break-inside:avoid}
- .sig-box{padding-top:60px;border-top:1px solid #000;width:70%;margin:auto;font-weight:700}
- </style></head><body>
- <div class="header-print">
-   <div class="brand-title">
-     <h1>PT SUCOFINDO (PERSERO)</h1>
-     <h2>PUMA SCI BANDAR LAMPUNG</h2>
-   </div>
- </div>
+ w.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Bukti Pengisian BBM - PT SUCOFINDO PUMA SCI</title><style>${PRINT_CSS}</style></head><body>
+ ${printHeader()}
  <div class="doc-title">
    <h3>Bukti Permintaan BBM</h3>
    <p>Nomor Dokumen Sistem: BMT-${f.id.toUpperCase()}</p>
@@ -1431,16 +1483,17 @@ function renderEtoll() {
     let act = '';
     if (isAdmin) {
       if (r.status==='Menunggu') act += `<button class="success tiny" onclick="quickEtollStatus('${r.id}','Disetujui')">Setujui</button><button class="danger tiny" onclick="quickEtollStatus('${r.id}','Ditolak')">Tolak</button>`;
-      if (r.status==='Disetujui') act += `<button class="primary tiny" onclick="markEtollFilled('${r.id}')">Tandai Sudah Diisi</button>`;
-      if (r.status==='Sudah Diisi') act += `<span style="font-size:11px;color:#64748b">Menunggu bukti</span>`;
+      if (r.status==='Disetujui') act += `<button class="primary tiny" onclick="openEtollTopup('${r.id}')">Tandai Sudah Diisi</button>`;
+      if (r.status==='Sudah Diisi') act += `<span style="font-size:11px;color:#64748b">Menunggu bukti</span><button class="outline tiny" onclick="openEtollTopup('${r.id}')">Edit Saldo</button>`;
+      if (r.status==='Selesai') act += `<button class="outline tiny" onclick="openEtollTopup('${r.id}')">Edit Saldo</button>`;
     } else if (r.status==='Sudah Diisi') act += `<button class="primary tiny" onclick="openEtollProof('${r.id}')">📎 Unggah Bukti</button>`;
-    if (r.proof) act += `<button class="outline tiny" onclick="viewEtollProof('${r.id}')">Lihat Bukti</button>`;
-    if (isAdmin) act += `<button class="danger tiny" onclick="deleteItem('etoll','${r.id}')">Hapus</button>`;
+    if (r.proof || r.photo1) act += `<button class="outline tiny" onclick="viewEtollProof('${r.id}')">Lihat Foto</button>`;
+    if (isAdmin) act += `<button class="primary tiny" onclick="printEtoll('${r.id}')">🖨️ Print Bukti</button><button class="danger tiny" onclick="deleteItem('etoll','${r.id}')">Hapus</button>`;
     return `<tr>
       <td>${esc(r.createdAt||'—')}</td>
       <td><b>${esc(r.requester)}</b>${sub(esc(r.division))}</td>
       <td><b>${esc(r.card)}</b>${sub(esc(vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId))))}</td>
-      <td>${rupiah(r.balance)}</td><td><b>${rupiah(r.amount)}</b></td>
+      <td>${rupiah(r.balance)}${r.balanceAfter != null ? sub('→ ' + rupiah(r.balanceAfter)) : ''}</td><td><b>${rupiah(r.amount)}</b>${r.topupAmount ? sub('Total isi: ' + rupiah(r.topupAmount)) : ''}</td>
       <td>${esc(r.purpose)}</td>
       <td>${badge(r.status)}${note}</td>
       <td><div class="rowactions">${act||'—'}</div></td></tr>`;
@@ -1458,11 +1511,16 @@ function openEtollForm() {
     <div><label>Saldo Kartu Saat Ini (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Wajib diisi, cek saldo di kartu"></div>
     <div><label>Nominal Permintaan Isi Saldo (Rp) *</label><input type="number" name="amount" min="1" step="1" required></div>
     <div class="full"><label>Keperluan / Rute Perjalanan *</label><textarea name="purpose" required rows="3" placeholder="Contoh: Perjalanan dinas Bandar Lampung – Jakarta PP"></textarea></div>
+    <div class="full"><label>Foto Saldo Kartu (opsional)</label>
+      <div class="upload-box" onclick="$('etollPhotoInput').click()"><span style="font-size:12px;color:#64748b">Klik untuk melampirkan foto saldo kartu saat ini</span>
+        <input type="file" id="etollPhotoInput" accept="image/*" hidden onchange="handleImageUpload(this,'etollPhotoPrev','etollPhotoData')">
+        <img id="etollPhotoPrev" class="preview-img" style="display:none"><input type="hidden" name="photo1" id="etollPhotoData"></div></div>
   </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Kirim Permintaan</button></div></form>`);
   $('etollForm').onsubmit = e => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target));
     d.balance = Number(d.balance); d.amount = Number(d.amount);
+    if (!d.photo1) delete d.photo1;
     if (!(d.balance >= 0) || d.balance !== d.balance) { toast('Saldo kartu E-Toll wajib diisi.'); return; }
     if (!(d.amount > 0)) { toast('Nominal permintaan harus lebih dari 0.'); return; }
     db.etoll = db.etoll || [];
@@ -1479,14 +1537,37 @@ function quickEtollStatus(rId, status) {
   r.status = status; save(); toast('Status E-Toll diperbarui menjadi ' + status);
 }
 
-function markEtollFilled(rId) {
+function openEtollTopup(rId) {
   if (!requireAdmin()) return;
-  const r = (db.etoll||[]).find(x => x.id === rId); if (!r) return;
-  const v = prompt('Nominal yang diisi ke kartu (Rp):', r.amount); if (v===null) return;
-  const n = Number(v);
-  if (!(n > 0)) { alert('Nominal tidak valid.'); return; }
-  r.topupAmount = n; r.topupDate = today(); r.status = 'Sudah Diisi';
-  save(); toast('Saldo ditandai sudah diisi. Pemohon diminta mengunggah bukti.');
+  const r = (db.etoll || []).find(x => x.id === rId); if (!r) return;
+  openModal(r.status === 'Disetujui' ? 'Isi Saldo E-Toll' : 'Edit Saldo E-Toll', `<form id="topupForm">
+    <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> · Nominal diminta <b>${rupiah(r.amount)}</b></p>
+    <div class="formgrid">
+      <div><label>Saldo Sebelum Top-up (Rp) *</label><input type="number" id="tpBefore" min="0" step="1" required value="${Number(r.balance) || 0}"></div>
+      <div><label>Saldo Setelah Top-up (Rp) *</label><input type="number" id="tpAfter" min="1" step="1" required value="${r.balanceAfter != null ? r.balanceAfter : ''}"></div>
+      <div class="full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px">
+        <label style="color:#1d4ed8">Total Isi Saldo (otomatis)</label>
+        <div id="tpTotal" style="font-size:22px;font-weight:800;color:#1e3a8a">Rp 0</div>
+        <div id="tpInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Simpan</button></div></form>`);
+  const calc = () => {
+    const b = Number($('tpBefore').value) || 0, a = Number($('tpAfter').value) || 0, t = a - b;
+    $('tpTotal').textContent = rupiah(Math.max(t, 0));
+    $('tpInfo').textContent = !$('tpAfter').value ? 'Isi saldo setelah top-up untuk menghitung total.'
+      : t <= 0 ? 'Saldo setelah harus lebih besar dari saldo sebelum.'
+      : t === Number(r.amount) ? 'Sesuai dengan nominal yang diminta ✔' : 'Berbeda dari nominal diminta (' + rupiah(r.amount) + ').';
+  };
+  $('tpBefore').oninput = calc; $('tpAfter').oninput = calc; calc();
+  $('topupForm').onsubmit = e => {
+    e.preventDefault();
+    const b = Number($('tpBefore').value), a = Number($('tpAfter').value);
+    if (!(a > b)) { toast('Saldo setelah top-up harus lebih besar dari saldo sebelum.'); return; }
+    r.balance = b; r.balanceAfter = a; r.topupAmount = a - b;
+    if (r.status === 'Disetujui') { r.status = 'Sudah Diisi'; r.topupDate = today(); } else if (!r.topupDate) r.topupDate = today();
+    save(); closeModal(); toast('Saldo tersimpan. Total isi: ' + rupiah(a - b));
+  };
 }
 
 function openEtollProof(rId) {
@@ -1511,15 +1592,16 @@ function openEtollProof(rId) {
 }
 
 function viewEtollProof(rId) {
-  const r = (db.etoll||[]).find(x => x.id === rId); if (!r || !r.proof) return;
-  openModal('Bukti E-Toll — ' + r.card, `<img src="${r.proof}" style="width:100%;border-radius:12px;border:1px solid #e2e8f0"><p style="font-size:12px;color:#64748b;margin:10px 0 0">Diunggah ${esc(r.proofDate||'')}</p>
-    <div class="form-actions"><button class="primary" onclick="closeModal()">Tutup</button></div>`);
+  const r = (db.etoll || []).find(x => x.id === rId); if (!r || !(r.proof || r.photo1)) return;
+  const fig = (src, cap) => src ? `<p style="font-size:12px;font-weight:700;color:#334155;margin:12px 0 6px">${cap}</p><img src="${esc(src)}" style="width:100%;border-radius:12px;border:1px solid #e2e8f0">` : '';
+  openModal('Foto E-Toll — ' + r.card, fig(r.photo1, 'Saldo kartu sebelum top-up') + fig(r.proof, 'Bukti setelah top-up' + (r.proofDate ? ' (' + r.proofDate + ')' : '')) +
+    '<div class="form-actions"><button class="primary" onclick="closeModal()">Tutup</button></div>');
 }
 
 function exportEtoll() {
   if (!requireAdmin()) return;
-  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo Sebelum','Nominal Diminta','Nominal Diisi','Tanggal Diisi','Keperluan','Status','Bukti'],
-    (db.etoll||[]).map(r => [r.createdAt,r.requester,r.division,r.card,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)),r.balance,r.amount,r.topupAmount||'',r.topupDate||'',r.purpose,r.status,r.proof?'Ada':'Belum']));
+  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo Sebelum','Saldo Setelah','Nominal Diminta','Nominal Diisi','Tanggal Diisi','Keperluan','Status','Bukti'],
+    (db.etoll||[]).map(r => [r.createdAt,r.requester,r.division,r.card,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)),r.balance,r.balanceAfter!=null?r.balanceAfter:'',r.amount,r.topupAmount||'',r.topupDate||'',r.purpose,r.status,r.proof?'Ada':'Belum']));
 }
 
 function quickFuelStatus(fId, status) {
