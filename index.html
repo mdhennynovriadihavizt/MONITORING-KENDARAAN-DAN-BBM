@@ -311,6 +311,10 @@ tbody tr:hover { background: #f8fafc; }
   box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.2);
 }
 
+.spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.45); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; margin-right:8px; vertical-align:-2px; }
+.secondary .spinner, .outline .spinner { border-color: rgba(37,99,235,.3); border-top-color:#2563eb; }
+@keyframes spin { to { transform: rotate(360deg); } }
+button:disabled { opacity:.85; cursor:wait; }
 .btn-admin-submit {
   width: 100%;
   background: linear-gradient(90deg, #0052cc 0%, #0077ff 100%);
@@ -407,6 +411,7 @@ tbody tr:hover { background: #f8fafc; }
           <span>MASUK SEBAGAI ADMIN</span>
           <span style="font-size:14px">➔</span>
         </button>
+        <div id="loginStatus" style="display:none; text-align:center; font-size:11px; color:#2563eb; font-weight:700; margin-top:10px;">⏳ Menghubungi server, mohon tunggu sebentar...</div>
 
         <!-- Tombol Akses Direct User -->
         <div style="text-align:center; margin-top:14px;">
@@ -745,7 +750,15 @@ async function api(action, data) {
   if (r.code === 'AUTH') { showLoginModal(); toast('Sesi berakhir. Silakan login kembali.'); }
   return r;
 }
-function busy(btn, on, label) { if (!btn) return; btn.disabled = on; if (label) btn.querySelector('span') ? btn.querySelector('span').textContent = (on ? 'Memproses...' : label) : btn.textContent = (on ? 'Memproses...' : label); }
+function busy(btn, on, label, onText) {
+  if (!btn) return;
+  const t = btn.querySelector('span') || btn;
+  if (on) { btn.dataset.orig = t.textContent; t.textContent = onText || 'Memproses...'; }
+  else if (btn.dataset.orig !== undefined) { t.textContent = btn.dataset.orig; }
+  btn.disabled = on;
+  btn.querySelectorAll('.spinner').forEach(x => x.remove());
+  if (on) { const sp = document.createElement('i'); sp.className = 'spinner'; btn.insertBefore(sp, btn.firstChild); }
+}
 const netErr = err => alert(err && err.message && err.message.includes('API_URL') ? err.message : 'Tidak dapat terhubung ke server. Periksa koneksi internet / URL backend.');
 
 function showResetPanel(mode) {
@@ -786,7 +799,8 @@ async function handleLogin(e) {
   const uname = $('loginUsername').value.trim();
   const pass = $('loginPassword').value;
   if (!uname || !pass) { alert('Silakan isi Username dan Kata Sandi terlebih dahulu!'); return; }
-  const btn = e.target.querySelector('button[type="submit"]'); busy(btn, true);
+  const btn = e.target.querySelector('button[type="submit"]'); busy(btn, true, '', 'MEMERIKSA AKUN...');
+  $('loginStatus').style.display = 'block';
   try {
     const r = await api('login', { username: uname, password: pass });
     if (!r.ok) { alert(r.error || 'Login gagal.'); return; }
@@ -797,7 +811,7 @@ async function handleLogin(e) {
     applyRolePermissions();
     navigate(currentUser.super ? 'accounts' : 'dashboard');
     toast('Berhasil masuk sebagai ' + (currentUser.super ? 'Super Admin' : 'Administrator') + ' PUMA SCI');
-  } catch (err) { netErr(err); } finally { busy(btn, false, 'MASUK SEBAGAI ADMIN'); }
+  } catch (err) { netErr(err); } finally { busy(btn, false); $('loginStatus').style.display = 'none'; }
 }
 
 function loginAsUser() {
