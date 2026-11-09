@@ -678,12 +678,16 @@ button:disabled { opacity:.85; cursor:wait; }
 
 <div class="modalback" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modalhead"><h3 id="modalTitle">Form Header</h3><button class="secondary" onclick="closeModal()">✕</button></div><div class="modalbody" id="modalBody"></div></div></div>
 <div class="toast" id="toast"></div>
+<div id="syncPill" onclick="syncNow().then(() => loadFromServer(true))" style="position:fixed;left:14px;bottom:14px;z-index:10000;display:none;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;font-size:11px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.12);cursor:pointer"></div>
 
 <script>
 const KEY = 'fleetcare_sucofindo_puma_sci_v4';
 const SESSION_DURATION = 30 * 60 * 1000;
 
 let db = { vehicles: [], fuel: [], requests: [], etoll: [] };
+const DATA_COLS = ['vehicles','fuel','requests','etoll'];
+let serverSnap = { vehicles:{}, fuel:{}, requests:{}, etoll:{} };
+let syncing = false, syncAgain = false, syncTimer = null;
 let editing = { type: null, id: null };
 let currentUser = { name: 'User Operasional', role: 'user' };
 let sessionTimerInterval = null;
@@ -705,9 +709,71 @@ function load(){
 }
 
 function save(){
-  try { localStorage.setItem(KEY, JSON.stringify(db)); }
-  catch(e) { alert('Penyimpanan browser penuh, data terbaru BELUM tersimpan permanen.\n\nSegera ekspor Backup JSON, lalu kurangi data/foto lama.'); }
   renderAll();
+  queueSync();
+}
+
+// ====== SINKRONISASI KE GOOGLE SHEET / DRIVE ======
+function setSync(state, text) {
+  const el = $('syncPill'); if (!el) return;
+  const t = new Date().toTimeString().slice(0,5);
+  const map = { loading:['⏳ Memuat data...','#2563eb'], saving:['⏳ Menyimpan ke server...','#2563eb'], ok:['✅ Tersinkron '+t,'#15803d'], error:['⚠️ Gagal sinkron — klik untuk coba lagi','#b91c1c'] };
+  el.textContent = text || map[state][0]; el.style.color = map[state][1]; el.style.display = 'block';
+}
+function snapshotDb() {
+  DATA_COLS.forEach(c => { serverSnap[c] = {}; (db[c] || []).forEach(r => serverSnap[c][r.id] = JSON.stringify(r)); });
+}
+function pendingOps() {
+  const ops = [];
+  DATA_COLS.forEach(c => {
+    const ids = new Set();
+    (db[c] || []).forEach(r => { ids.add(r.id); if (serverSnap[c][r.id] !== JSON.stringify(r)) ops.push({ op:'upsert', col:c, rec:r }); });
+    Object.keys(serverSnap[c]).forEach(i => { if (!ids.has(i)) ops.push({ op:'delete', col:c, id:i }); });
+  });
+  return ops;
+}
+async function loadFromServer(silent, force) {
+  if (!force && (syncing || pendingOps().length)) return;
+  if (!silent) setSync('loading');
+  try {
+    const r = await api('getData');
+    if (!r.ok) throw new Error(r.error || 'gagal');
+    DATA_COLS.forEach(c => db[c] = r.data[c] || []);
+    snapshotDb(); renderAll(); setSync('ok');
+  } catch (e) { setSync('error'); }
+}
+function queueSync() { clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 400); }
+async function syncNow() {
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  let rejected = 0;
+  try {
+    do {
+      syncAgain = false;
+      let ops = pendingOps();
+      // Tanpa login, hanya boleh membuat permintaan baru; sisanya ditahan sampai login admin
+      if (!localStorage.getItem('sucofindo_token')) ops = ops.filter(o => o.op === 'upsert' && o.col !== 'vehicles');
+      if (!ops.length) break;
+      const CH = 6;
+      for (let i = 0; i < ops.length; i += CH) {
+        setSync('saving', ops.length > CH ? `⏳ Menyimpan ${Math.min(i + CH, ops.length)}/${ops.length}...` : '');
+        const part = ops.slice(i, i + CH);
+        const r = await api('sync', { ops: part });
+        if (!r.ok) throw new Error(r.error || 'gagal');
+        rejected += r.rejected || 0;
+        part.forEach(o => { if (o.op === 'delete') delete serverSnap[o.col][o.id]; });
+        (r.results || []).forEach(x => {
+          const k = db[x.col].findIndex(y => y.id === x.rec.id);
+          if (k >= 0) db[x.col][k] = x.rec;
+          serverSnap[x.col][x.rec.id] = JSON.stringify(x.rec);
+        });
+      }
+      renderAll();
+    } while (syncAgain);
+    setSync('ok');
+  } catch (e) { setSync('error'); toast('Gagal menyimpan ke server. Perubahan akan dicoba lagi.'); }
+  finally { syncing = false; }
+  if (rejected) { toast('Sebagian perubahan ditolak server (hak akses). Data dimuat ulang.'); await loadFromServer(true, true); }
 }
 
 function toast(msg){
@@ -812,6 +878,7 @@ async function handleLogin(e) {
     applyRolePermissions();
     navigate(currentUser.super ? 'accounts' : 'dashboard');
     toast('Berhasil masuk sebagai ' + (currentUser.super ? 'Super Admin' : 'Administrator') + ' PUMA SCI');
+    await syncNow(); loadFromServer(true);
   } catch (err) { netErr(err); } finally { busy(btn, false); $('loginStatus').style.display = 'none'; }
 }
 
@@ -1620,20 +1687,21 @@ $('restoreFile').onchange = async e => {
     for (const f of x.fuel) fuel.push({ ...f, photo1: await shrinkImage(f.photo1), photo2: await shrinkImage(f.photo2) });
     const etoll = [];
     for (const r of (x.etoll || [])) etoll.push({ ...r, proof: await shrinkImage(r.proof) });
-    const next = { vehicles: x.vehicles, fuel, requests: x.requests || [], etoll };
-    localStorage.setItem(KEY, JSON.stringify(next));
-    db = next; renderAll(); toast('Backup berhasil diimpor.');
+    db = { vehicles: x.vehicles, fuel, requests: x.requests || [], etoll };
+    save(); toast('Backup dibaca. Mengunggah data & foto ke server, jangan tutup halaman...');
   } catch(err) {
     db = oldDb;
-    alert('Gagal impor backup: ' + err.message + (/quota/i.test(err.message) ? '\n\nData backup terlalu besar untuk penyimpanan browser meskipun fotonya sudah dikompres. Data lama kamu tidak berubah.' : ''));
+    alert('Gagal impor backup: ' + err.message);
   }
   finally { e.target.value = ''; }
 };
 
 window.onload = function() {
-  load();
   renderAll();
   checkSessionOnLoad();
+  loadFromServer();
+  setInterval(() => { if (document.hidden) return; if (pendingOps().length) syncNow(); else loadFromServer(true); }, 90000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFromServer(true); });
 };
 </script>
 </body>
