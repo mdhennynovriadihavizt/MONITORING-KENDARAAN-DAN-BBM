@@ -646,7 +646,7 @@ button:disabled { opacity:.85; cursor:wait; }
       <button class="outline admin-only" onclick="exportEtoll()">Ekspor Excel</button>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Tanggal</th><th>Pemohon / Divisi</th><th>Kartu & Kendaraan</th><th>Saldo Kartu</th><th>Nominal Diminta</th><th>Keperluan</th><th>Status</th><th>Aksi</th></tr></thead>
+      <thead><tr><th>Tanggal</th><th>Pemohon / Divisi</th><th>Kartu & Kendaraan</th><th>Saldo E-Toll</th><th>Nominal Diminta</th><th>Keperluan</th><th>Status</th><th>Aksi</th></tr></thead>
       <tbody id="etollTable"></tbody>
     </table></div>
     <div class="notice" id="etollCount"></div>
@@ -1290,7 +1290,7 @@ function printEtoll(rId) {
   const v = db.vehicles.find(x => x.id === r.vehicleId) || {};
   const w = window.open('', '_blank', 'width=850,height=950');
   if (!w) { toast('Izinkan pop-up browser untuk mencetak bukti.'); return; }
-  const hasAfter = r.balanceAfter != null && r.balanceAfter !== '';
+  const hasAfter = r.topupAmount != null && r.topupAmount !== '';
   const rows = [
     ['Tanggal Pengajuan', r.createdAt || '—'],
     ['Nama Pemohon', r.requester || '—'],
@@ -1299,11 +1299,11 @@ function printEtoll(rId) {
     ['Kendaraan', v.plate ? `${v.plate} (${v.model || ''})` : '—'],
     ['Keperluan / Rute', r.purpose || '—'],
     ['Nominal Diminta', rupiah(r.amount)],
-    ['Saldo Sebelum Top-up', rupiah(r.balance)],
-    ['Saldo Setelah Top-up', hasAfter ? rupiah(r.balanceAfter) : '—'],
+    ['Saldo E-Toll', rupiah(r.balance)],
+    ['Nilai Top Up Saldo E-Toll', hasAfter ? rupiah(r.topupAmount) : '—'],
   ];
   const body = rows.map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('') +
-    `<tr class="total-row"><th>Total Isi Saldo</th><td>${hasAfter ? rupiah(r.balanceAfter - r.balance) : (r.topupAmount ? rupiah(r.topupAmount) : '—')}</td></tr>` +
+    `<tr class="total-row"><th>TOTAL SALDO</th><td>${hasAfter ? rupiah(Number(r.balance) + Number(r.topupAmount)) : '—'}</td></tr>` +
     [['Tanggal Pengisian', r.topupDate || '—'], ['Status', r.status || '—'], ['Disetujui oleh', r.admin || '—'], ['Catatan Admin', r.adminNotes || '—']]
       .map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('');
   let photos = '';
@@ -1493,7 +1493,7 @@ function renderEtoll() {
       <td>${esc(r.createdAt||'—')}</td>
       <td><b>${esc(r.requester)}</b>${sub(esc(r.division))}</td>
       <td><b>${esc(r.card)}</b>${sub(esc(vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId))))}</td>
-      <td>${rupiah(r.balance)}${r.balanceAfter != null ? sub('→ ' + rupiah(r.balanceAfter)) : ''}</td><td><b>${rupiah(r.amount)}</b>${r.topupAmount ? sub('Total isi: ' + rupiah(r.topupAmount)) : ''}</td>
+      <td>${rupiah(r.balance)}${r.balanceAfter != null ? sub('Total saldo: ' + rupiah(r.balanceAfter)) : ''}</td><td><b>${rupiah(r.amount)}</b>${r.topupAmount ? sub('Nilai top up: ' + rupiah(r.topupAmount)) : ''}</td>
       <td>${esc(r.purpose)}</td>
       <td>${badge(r.status)}${note}</td>
       <td><div class="rowactions">${act||'—'}</div></td></tr>`;
@@ -1508,7 +1508,7 @@ function openEtollForm() {
     <div><label>Bidang / Divisi *</label><input name="division" required></div>
     <div><label>Nomor Kartu E-Toll *</label><input name="card" required autocomplete="off"></div>
     <div><label>Kendaraan *</label><select name="vehicleId" required>${vehicleOptions('', true)}</select></div>
-    <div><label>Saldo Kartu Saat Ini (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Wajib diisi, cek saldo di kartu"></div>
+    <div><label>Saldo E-Toll Saat Ini (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Wajib diisi, cek saldo di kartu"></div>
     <div><label>Nominal Permintaan Isi Saldo (Rp) *</label><input type="number" name="amount" min="1" step="1" required></div>
     <div class="full"><label>Keperluan / Rute Perjalanan *</label><textarea name="purpose" required rows="3" placeholder="Contoh: Perjalanan dinas Bandar Lampung – Jakarta PP"></textarea></div>
     <div class="full"><label>Foto Saldo Kartu (opsional)</label>
@@ -1543,30 +1543,30 @@ function openEtollTopup(rId) {
   openModal(r.status === 'Disetujui' ? 'Isi Saldo E-Toll' : 'Edit Saldo E-Toll', `<form id="topupForm">
     <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> · Nominal diminta <b>${rupiah(r.amount)}</b></p>
     <div class="formgrid">
-      <div><label>Saldo Sebelum Top-up (Rp) *</label><input type="number" id="tpBefore" min="0" step="1" required value="${Number(r.balance) || 0}"></div>
-      <div><label>Saldo Setelah Top-up (Rp) *</label><input type="number" id="tpAfter" min="1" step="1" required value="${r.balanceAfter != null ? r.balanceAfter : ''}"></div>
+      <div><label>Saldo E-Toll (Rp) *</label><input type="number" id="tpBefore" min="0" step="1" required value="${Number(r.balance) || 0}"></div>
+      <div><label>Nilai Top Up Saldo E-Toll (Rp) *</label><input type="number" id="tpTopup" min="1" step="1" required value="${r.topupAmount != null ? r.topupAmount : ''}"></div>
       <div class="full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px">
-        <label style="color:#1d4ed8">Total Isi Saldo (otomatis)</label>
+        <label style="color:#1d4ed8">Total Saldo (otomatis)</label>
         <div id="tpTotal" style="font-size:22px;font-weight:800;color:#1e3a8a">Rp 0</div>
         <div id="tpInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
       </div>
     </div>
     <div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Simpan</button></div></form>`);
   const calc = () => {
-    const b = Number($('tpBefore').value) || 0, a = Number($('tpAfter').value) || 0, t = a - b;
-    $('tpTotal').textContent = rupiah(Math.max(t, 0));
-    $('tpInfo').textContent = !$('tpAfter').value ? 'Isi saldo setelah top-up untuk menghitung total.'
-      : t <= 0 ? 'Saldo setelah harus lebih besar dari saldo sebelum.'
-      : t === Number(r.amount) ? 'Sesuai dengan nominal yang diminta ✔' : 'Berbeda dari nominal diminta (' + rupiah(r.amount) + ').';
+    const b = Number($('tpBefore').value) || 0, t = Number($('tpTopup').value) || 0;
+    $('tpTotal').textContent = rupiah(b + t);
+    $('tpInfo').textContent = !$('tpTopup').value ? 'Isi nilai top up untuk menghitung total saldo.'
+      : t <= 0 ? 'Nilai top up harus lebih dari 0.'
+      : rupiah(b) + ' + ' + rupiah(t) + (t === Number(r.amount) ? ' · sesuai nominal diminta ✔' : ' · berbeda dari nominal diminta (' + rupiah(r.amount) + ')');
   };
-  $('tpBefore').oninput = calc; $('tpAfter').oninput = calc; calc();
+  $('tpBefore').oninput = calc; $('tpTopup').oninput = calc; calc();
   $('topupForm').onsubmit = e => {
     e.preventDefault();
-    const b = Number($('tpBefore').value), a = Number($('tpAfter').value);
-    if (!(a > b)) { toast('Saldo setelah top-up harus lebih besar dari saldo sebelum.'); return; }
-    r.balance = b; r.balanceAfter = a; r.topupAmount = a - b;
+    const b = Number($('tpBefore').value), t = Number($('tpTopup').value);
+    if (!(b >= 0) || !(t > 0)) { toast('Nilai top up harus lebih dari 0.'); return; }
+    r.balance = b; r.topupAmount = t; r.balanceAfter = b + t;
     if (r.status === 'Disetujui') { r.status = 'Sudah Diisi'; r.topupDate = today(); } else if (!r.topupDate) r.topupDate = today();
-    save(); closeModal(); toast('Saldo tersimpan. Total isi: ' + rupiah(a - b));
+    save(); closeModal(); toast('Tersimpan. Total saldo: ' + rupiah(b + t));
   };
 }
 
@@ -1600,7 +1600,7 @@ function viewEtollProof(rId) {
 
 function exportEtoll() {
   if (!requireAdmin()) return;
-  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo Sebelum','Saldo Setelah','Nominal Diminta','Nominal Diisi','Tanggal Diisi','Keperluan','Status','Bukti'],
+  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo E-Toll','Total Saldo','Nominal Diminta','Nilai Top Up','Tanggal Diisi','Keperluan','Status','Bukti'],
     (db.etoll||[]).map(r => [r.createdAt,r.requester,r.division,r.card,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)),r.balance,r.balanceAfter!=null?r.balanceAfter:'',r.amount,r.topupAmount||'',r.topupDate||'',r.purpose,r.status,r.proof?'Ada':'Belum']));
 }
 
