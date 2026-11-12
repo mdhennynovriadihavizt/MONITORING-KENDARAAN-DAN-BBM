@@ -311,6 +311,17 @@ tbody tr:hover { background: #f8fafc; }
   box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.2);
 }
 
+.avail-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:12px; }
+.avail-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; font-size:12px; color:#475569; line-height:1.55; }
+.avail-card.free { border-color:#bbf7d0; background:#f0fdf4; }
+.avail-card.used { border-color:#fecaca; background:#fef2f2; }
+.avail-card.off { background:#f1f5f9; }
+.avail-card .av-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px; }
+.avail-card .av-plate { font-size:14px; font-weight:800; color:#0f172a; }
+.avail-card .av-sub { color:#64748b; font-size:11px; }
+.avail-card .av-row b { color:#0f172a; }
+.avail-card .av-warn { color:#b45309; font-weight:700; margin-top:6px; }
+.avail-card .av-next { margin-top:8px; padding-top:8px; border-top:1px dashed #cbd5e1; color:#64748b; }
 .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.45); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; margin-right:8px; vertical-align:-2px; }
 .secondary .spinner, .outline .spinner { border-color: rgba(37,99,235,.3); border-top-color:#2563eb; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -594,6 +605,13 @@ button:disabled { opacity:.85; cursor:wait; }
       <button class="outline admin-only" onclick="openImportCsvModal('requests')">📥 Import CSV</button>
       <button class="primary" onclick="openRequestForm()">＋ Ajukan Permintaan Mobil</button>
     </div>
+  </div>
+  <div class="panel" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div><h4 style="margin:0">Ketersediaan Kendaraan</h4><p style="margin:2px 0 0;font-size:12px;color:#64748b">Diperbarui otomatis dari permintaan yang disetujui. Kendaraan kembali tersedia setelah Admin menandai permintaan <b>Selesai</b>.</p></div>
+      <div id="availabilitySummary" style="font-size:12px;font-weight:700;color:#475569"></div>
+    </div>
+    <div class="avail-grid" id="availabilityGrid"></div>
   </div>
   <div class="panel">
     <div class="toolbar">
@@ -1050,19 +1068,99 @@ document.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click'
 $('menuBtn').onclick = () => $('sidebar').classList.toggle('open');
 
 function badge(status) {
-  const cls = {'Sudah Diisi':'b-amber','Menunggu':'b-amber','Disetujui':'b-green','Ditolak':'b-red','Selesai':'b-blue','Aktif':'b-green','Tidak aktif':'b-gray'}[status] || 'b-gray';
+  const cls = {'Sudah Diisi':'b-amber','Menunggu':'b-amber','Disetujui':'b-green','Ditolak':'b-red','Selesai':'b-blue','Aktif':'b-green','Tidak aktif':'b-gray','Tersedia':'b-green','Tidak Tersedia':'b-red'}[status] || 'b-gray';
   return `<span class="badge ${cls}">${esc(status)}</span>`;
 }
 
-function vehicleOptions(selected='', activeOnly=false) {
+// ====== BIDANG / SUB-BAGIAN ======
+const BIDANG_MAP = {
+  BITU:   ['PIK','LSI','HMPM','AEBT','INDUSTRI','AGRI','INCO','FHI','FINS'],
+  BIP:    ['LABORATORIUM','BATUBARA','SERCO','MINERAL'],
+  DUKBIS: ['KEUANGAN','HC','UMUM','QHSE','IT'],
+  PDO:    ['SALES']
+};
+function subOptions(b, sb) {
+  return '<option value="">Pilih sub-bagian</option>' + (BIDANG_MAP[b] || []).map(x => `<option ${x === sb ? 'selected' : ''}>${x}</option>`).join('');
+}
+function bidangFields(r) {
+  r = r || {};
+  const b = BIDANG_MAP[r.bidang] ? r.bidang : '', sb = r.subBagian || '';
+  const legacy = !b && r.division ? `<option value="__legacy" selected>(data lama) ${esc(r.division)}</option>` : '';
+  return `<div><label>Bidang *</label><select name="bidang" required onchange="fillSubBagian(this)"><option value="">Pilih bidang</option>${legacy}${Object.keys(BIDANG_MAP).map(k => `<option ${k === b ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+  <div><label>Sub-Bagian *</label><select name="subBagian" ${legacy ? '' : 'required'}>${subOptions(b, sb)}</select></div>`;
+}
+function fillSubBagian(sel) {
+  const t = sel.form.elements['subBagian'];
+  t.innerHTML = subOptions(sel.value, '');
+  t.required = sel.value !== '__legacy';
+}
+// Gabungkan bidang + sub-bagian menjadi teks divisi (kompatibel dengan data lama)
+function applyDivision(d) {
+  if (d.bidang === '__legacy') { delete d.bidang; delete d.subBagian; return; }
+  d.division = d.bidang + ' - ' + d.subBagian;
+}
+
+function vehicleOptions(selected='', activeOnly=false, annotate=false) {
   let vs = db.vehicles.filter(v => !activeOnly || v.status==='Aktif');
-  return `<option value="">Pilih kendaraan</option>` + vs.map(v => `<option value="${esc(v.id)}" ${v.id===selected?'selected':''}>${esc(v.plate)} — ${esc(v.model)}</option>`).join('');
+  return `<option value="">Pilih kendaraan</option>` + vs.map(v => {
+    const used = annotate && vehicleAvailability(v).state === 'used' ? ' · SEDANG DIGUNAKAN' : '';
+    return `<option value="${esc(v.id)}" ${v.id===selected?'selected':''}>${esc(v.plate)} — ${esc(v.model)}${used}</option>`;
+  }).join('');
+}
+
+// ====== KETERSEDIAAN KENDARAAN ======
+const reqDT = (d, t) => d ? new Date(d + 'T' + (t || '00:00')) : null;
+function fmtDT(d, t) {
+  const dt = reqDT(d, t); if (!dt || isNaN(dt)) return '—';
+  return dt.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) + ', ' + (t || '00:00');
+}
+function vehicleAvailability(v) {
+  if (v.status === 'Tidak aktif') return { state: 'off' };
+  const now = new Date();
+  const act = db.requests.filter(r => r.vehicleId === v.id && r.status === 'Disetujui' && reqDT(r.departDate, r.departTime));
+  const cur = act.filter(r => reqDT(r.departDate, r.departTime) <= now).sort((a, b) => reqDT(b.departDate, b.departTime) - reqDT(a.departDate, a.departTime))[0];
+  const next = act.filter(r => reqDT(r.departDate, r.departTime) > now).sort((a, b) => reqDT(a.departDate, a.departTime) - reqDT(b.departDate, b.departTime))[0];
+  return { state: cur ? 'used' : 'free', cur, next, overdue: !!cur && reqDT(cur.returnDate, cur.returnTime) < now };
+}
+function findConflict(d, ignoreId) {
+  const s1 = reqDT(d.departDate, d.departTime), e1 = reqDT(d.returnDate, d.returnTime);
+  if (!d.vehicleId || !s1 || !e1) return null;
+  return db.requests.find(x => x.id !== ignoreId && x.vehicleId === d.vehicleId && x.status === 'Disetujui' &&
+    s1 < reqDT(x.returnDate, x.returnTime) && reqDT(x.departDate, x.departTime) < e1) || null;
+}
+function conflictText(x) {
+  return `Kendaraan ini sudah dijadwalkan untuk ${x.requester} (tujuan ${x.destination}) pada ${fmtDT(x.departDate, x.departTime)} s/d ${fmtDT(x.returnDate, x.returnTime)}.\n\nTetap lanjutkan?`;
+}
+function renderAvailability() {
+  const grid = $('availabilityGrid'); if (!grid) return;
+  const list = db.vehicles.map(v => ({ v, a: vehicleAvailability(v) }));
+  const free = list.filter(x => x.a.state === 'free').length, used = list.filter(x => x.a.state === 'used').length;
+  $('availabilitySummary').textContent = `${free} tersedia · ${used} digunakan` + (list.some(x => x.a.state === 'off') ? ` · ${list.filter(x => x.a.state === 'off').length} nonaktif` : '');
+  const order = { used: 0, free: 1, off: 2 };
+  grid.innerHTML = list.sort((x, y) => order[x.a.state] - order[y.a.state] || x.v.plate.localeCompare(y.v.plate)).map(({ v, a }) => {
+    const head = (label) => `<div class="av-head"><div><div class="av-plate">${esc(v.plate)}</div><div class="av-sub">${esc(v.model)}${v.type ? ' · ' + esc(v.type) : ''}</div></div>${badge(label)}</div>`;
+    if (a.state === 'off') return `<div class="avail-card off">${head('Tidak Tersedia')}<div class="av-row">Kendaraan sedang <b>tidak aktif</b> (tidak beroperasi).</div></div>`;
+    if (a.state === 'used') {
+      const r = a.cur;
+      return `<div class="avail-card used">${head('Tidak Tersedia')}
+        <div class="av-row">Digunakan oleh <b>${esc(r.requester)}</b>${r.division ? ' (' + esc(r.division) + ')' : ''}</div>
+        <div class="av-row">Tujuan: <b>${esc(r.destination)}</b></div>
+        <div class="av-row">Berangkat: <b>${esc(fmtDT(r.departDate, r.departTime))}</b></div>
+        <div class="av-row">Kembali: <b>${esc(fmtDT(r.returnDate, r.returnTime))}</b></div>
+        ${r.driver ? `<div class="av-row">Driver: <b>${esc(r.driver)}</b></div>` : ''}
+        ${a.overdue ? '<div class="av-warn">⚠️ Melewati jadwal kembali — menunggu konfirmasi Admin</div>' : ''}</div>`;
+    }
+    const n = a.next;
+    return `<div class="avail-card free">${head('Tersedia')}<div class="av-row">Kendaraan siap digunakan.</div>
+      ${n ? `<div class="av-next">Jadwal berikutnya: <b>${esc(fmtDT(n.departDate, n.departTime))}</b> s/d ${esc(fmtDT(n.returnDate, n.returnTime))}<br>${esc(n.requester)} → ${esc(n.destination)}</div>` : ''}</div>`;
+  }).join('') || '<div class="empty" style="grid-column:1/-1">Belum ada data kendaraan.</div>';
 }
 
 function renderAll() {
   renderDashboard();
   renderFuel();
   renderRequests();
+  renderAvailability();
   renderEtoll();
   renderVehicles();
   renderMonthOptions();
@@ -1136,9 +1234,9 @@ function openFuelForm(fId=null) {
   openModal(fId ? 'Edit Pengisian BBM' : (currentUser.role==='admin' ? 'Tambah Pengisian BBM' : 'Ajukan Permintaan BBM'), `
   <form id="fuelForm"><div class="formgrid">
   <div><label>Tanggal Pengisian *</label><input name="date" type="date" required value="${esc(f.date||today())}"></div>
-  <div><label>Bidang *</label><select name="bidang" required>${['BITU','BIP','PDO','DUKBIS'].map(b=>`<option ${(f.bidang||'BITU')===b?'selected':''}>${b}</option>`).join('')}</select></div>
+  <div><label>Nama Pengemudi / Pemohon *</label><input name="driver" required value="${esc(f.driver||'')}" placeholder="Ketik nama lengkap"></div>
+  ${bidangFields(f)}
   <div><label>Kendaraan *</label><select name="vehicleId" required>${vehicleOptions(f.vehicleId||'')}</select></div>
-  <div><label>Nama Pengemudi *</label><input name="driver" required value="${esc(f.driver||'')}" placeholder="Nama driver"></div>
   <div><label>Metode Pembayaran *</label><select name="method" required><option ${f.method==='Struk / Tunai'?'selected':''}>Struk / Tunai</option><option ${f.method==='Kartu BBM'?'selected':''}>Kartu BBM</option></select></div>
   <div><label>Jenis BBM *</label><select name="fuelType" required>${['Pertalite','Pertamax','Pertamax Turbo','Solar','Dexlite','Pertamina Dex','Lainnya'].map(x=>`<option ${f.fuelType===x?'selected':''}>${x}</option>`).join('')}</select></div>
   <div><label>Volume (Liter) *</label><input name="liters" type="number" min="0.01" step="0.01" required value="${esc(f.liters??'')}" placeholder="Contoh: 35.5"></div>
@@ -1172,6 +1270,16 @@ function openFuelForm(fId=null) {
     </div>
   </div>
 
+  ${!fId ? `<div class="full" style="background:#f8fafc;padding:16px;border-radius:14px;border:1px solid #e2e8f0">
+    <label style="display:flex;gap:10px;align-items:center;cursor:pointer;color:#2563eb;margin:0"><input type="checkbox" name="withEtoll" style="width:auto;margin:0" onchange="$('etollInFuel').style.display=this.checked?'grid':'none'"> 💳 Sekaligus ajukan permintaan E-Toll</label>
+    <div id="etollInFuel" style="display:none;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px">
+      <div><label>Nomor Kartu E-Toll *</label><input name="etoll_card" autocomplete="off"></div>
+      <div><label>Saldo E-Toll Saat Ini (Rp) *</label><input type="number" name="etoll_balance" min="0" step="1"></div>
+      <div><label>Nilai Top Up yang Diminta (Rp) *</label><input type="number" name="etoll_amount" min="1" step="1"></div>
+      <div><label>Keperluan / Rute *</label><input name="etoll_purpose" placeholder="Contoh: Dinas Bandar Lampung – Jakarta PP"></div>
+      <div style="grid-column:1/-1;font-size:11px;color:#64748b">Permintaan E-Toll diproses terpisah oleh Admin dan juga muncul di menu Permintaan E-Toll.</div>
+    </div></div>` : ''}
+
   <div class="full"><label>Catatan</label><textarea name="notes" rows="2" placeholder="Keterangan tambahan">${esc(f.notes||'')}</textarea></div>
   </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button class="primary" type="submit">${currentUser.role==='admin'?'Simpan Pengisian':'Kirim Permintaan'}</button></div></form>`);
 
@@ -1181,9 +1289,22 @@ function openFuelForm(fId=null) {
     d.liters = Number(d.liters);
     d.amount = Number(d.amount);
     d.odometer = Number(d.odometer);
+    // Opsi E-Toll (hanya saat membuat baru)
+    let tol = null;
+    if (!fId && d.withEtoll) {
+      const bal = Number(d.etoll_balance), amt = Number(d.etoll_amount);
+      if (!d.etoll_card || d.etoll_balance === '' || !(bal >= 0) || !(amt > 0) || !d.etoll_purpose) { toast('Lengkapi data E-Toll: nomor kartu, saldo saat ini, nilai top up, dan keperluan.'); return; }
+      tol = { id:id(), createdAt:today(), createdBy:currentUser.name, status:'Menunggu', requester:d.driver, division:d.bidang + ' - ' + d.subBagian, bidang:d.bidang, subBagian:d.subBagian, card:d.etoll_card.trim(), vehicleId:d.vehicleId, balance:bal, amount:amt, purpose:d.etoll_purpose.trim() };
+    }
+    ['withEtoll','etoll_card','etoll_balance','etoll_amount','etoll_purpose'].forEach(k => delete d[k]);
     if(fId){ db.fuel = db.fuel.map(x => x.id===fId ? {...x,...d} : x); }
-    else db.fuel.push({id:id(), createdAt:today(), createdBy:currentUser.name, status: currentUser.role==='admin' ? 'Disetujui' : 'Menunggu', ...d});
-    save(); closeModal(); toast(currentUser.role==='admin' || fId ? 'Data pengisian BBM berhasil disimpan 🎉' : 'Permintaan BBM terkirim, menunggu persetujuan Admin ✨');
+    else {
+      const fid = id();
+      if (tol) { tol.fuelId = fid; d.etollId = tol.id; db.etoll = db.etoll || []; db.etoll.push(tol); }
+      db.fuel.push({id:fid, createdAt:today(), createdBy:currentUser.name, status: currentUser.role==='admin' ? 'Disetujui' : 'Menunggu', ...d});
+    }
+    save(); closeModal();
+    toast(fId ? 'Data pengisian BBM berhasil disimpan 🎉' : (currentUser.role==='admin' && !tol ? 'Data pengisian BBM berhasil disimpan 🎉' : 'Permintaan BBM' + (tol ? ' & E-Toll' : '') + ' terkirim, menunggu persetujuan Admin ✨'));
   }
 }
 
@@ -1223,7 +1344,7 @@ function renderFuel() {
 
   let rows = db.fuel.filter(f => {
     let v = db.vehicles.find(x => x.id === f.vehicleId) || {};
-    let str = [f.bidang||'BITU', v.plate, v.model, f.driver, f.reference, f.spbu, f.location, f.fuelType, f.method].join(' ').toLowerCase();
+    let str = [f.bidang||'BITU', f.subBagian, v.plate, v.model, f.driver, f.reference, f.spbu, f.location, f.fuelType, f.method].join(' ').toLowerCase();
     return str.includes(q) && (!bFilter || (f.bidang||'BITU')===bFilter) && (!method || f.method===method) && (!month || (f.date||'').startsWith(month));
   }).sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
@@ -1235,7 +1356,7 @@ function renderFuel() {
     let photoBadge = countPhotos > 0 ? `<span class="badge b-green">📷 ${countPhotos} Foto</span>` : `<span class="badge b-gray">Tanpa Foto</span>`;
     return `<tr>
       <td>${esc(f.date)}</td>
-      <td><span class="badge b-blue">${esc(f.bidang||'BITU')}</span></td>
+      <td><span class="badge b-blue">${esc(f.bidang||'BITU')}</span>${f.subBagian ? `<br><span style="color:#64748b;font-size:11px">${esc(f.subBagian)}</span>` : ''}${f.etollId ? '<br><span style="color:#2563eb;font-size:11px;font-weight:700">💳 + E-Toll</span>' : ''}</td>
       <td><b>${esc(v?.plate||'Kendaraan Dihapus')}</b><br><span style="color:#64748b;font-size:11px">${esc(v?.model||'')}</span></td>
       <td>${esc(f.driver)}</td>
       <td><b>${esc(f.spbu||f.station||'—')}</b><br><span style="color:#64748b;font-size:11px">${esc(f.location||'—')}</span></td>
@@ -1336,7 +1457,7 @@ function printFuel(fId) {
  
  const rows = [
   ['Tanggal Pengisian', f.date||'—'],
-  ['Bidang Operasional', f.bidang||'BITU'],
+  ['Bidang Operasional', (f.bidang||'BITU') + (f.subBagian ? ' - ' + f.subBagian : '')],
   ['Kendaraan', `${v.plate||'Kendaraan Dihapus'} ${v.model?' ('+v.model+')':''}`],
   ['Pengemudi / Driver', f.driver||'—'],
   ['Metode Pembayaran', f.method||'—'],
@@ -1390,7 +1511,7 @@ function openRequestForm(rId=null) {
   <form id="requestForm"><div class="formgrid">
   <div><label>Tanggal Pengajuan *</label><input name="createdAt" type="date" required value="${esc(r.createdAt||today())}"></div>
   <div><label>Nama Pemohon *</label><input name="requester" required value="${esc(r.requester||(currentUser.role==='user'?currentUser.name:''))}" placeholder="Nama pegawai"></div>
-  <div><label>Divisi / Unit Kerja *</label><input name="division" required value="${esc(r.division||'')}" placeholder="Contoh: Operasional / PUMA SCI"></div>
+  ${bidangFields(r)}
   <div><label>Nomor Kontak</label><input name="contact" value="${esc(r.contact||'')}" placeholder="No. Telp / HP"></div>
   <div class="full"><label>Tujuan Perjalanan *</label><input name="destination" required value="${esc(r.destination||'')}" placeholder="Kota / Lokasi Tujuan"></div>
   <div class="full"><label>Keperluan Perjalanan *</label><textarea name="purpose" required rows="2" placeholder="Detail dinas operasional">${esc(r.purpose||'')}</textarea></div>
@@ -1400,7 +1521,7 @@ function openRequestForm(rId=null) {
   <div><label>Jam Kembali *</label><input name="returnTime" type="time" required value="${esc(r.returnTime||'17:00')}"></div>
 
   ${isAdmin ? `
-    <div><label>Pilih Kendaraan (Admin)</label><select name="vehicleId">${vehicleOptions(r.vehicleId||'',true)}</select></div>
+    <div><label>Pilih Kendaraan (Admin)</label><select name="vehicleId">${vehicleOptions(r.vehicleId||'',true,true)}</select></div>
     <div><label>Driver Ditugaskan (Admin)</label><input name="driver" value="${esc(r.driver||'')}" placeholder="Nama driver"></div>
     <div><label>Status Persetujuan</label><select name="status">${['Menunggu','Disetujui','Ditolak','Selesai'].map(s=>`<option ${((r.status||'Menunggu')===s)?'selected':''}>${s}</option>`).join('')}</select></div>
     <div><label>Admin Penanggung Jawab</label><input name="admin" value="${esc(r.admin||currentUser.name)}" placeholder="Nama admin"></div>
@@ -1422,7 +1543,9 @@ function openRequestForm(rId=null) {
   $('requestForm').onsubmit = e => {
     e.preventDefault();
     let d = Object.fromEntries(new FormData(e.target));
+    applyDivision(d);
     if(d.returnDate < d.departDate){ toast('Tanggal kembali tidak boleh sebelum tanggal berangkat.'); return; }
+    if(isAdmin && d.status==='Disetujui' && d.vehicleId){ const c = findConflict(d, rId); if(c && !confirm(conflictText(c))) return; }
     if(rId){ db.requests = db.requests.map(x => x.id===rId ? {...x,...d} : x); }
     else db.requests.push({id:id(),...d});
     save(); closeModal(); toast('Permintaan mobil berhasil disimpan ✨');
@@ -1494,7 +1617,7 @@ function renderEtoll() {
       <td><b>${esc(r.requester)}</b>${sub(esc(r.division))}</td>
       <td><b>${esc(r.card)}</b>${sub(esc(vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId))))}</td>
       <td>${rupiah(r.balance)}${r.balanceAfter != null ? sub('Total saldo: ' + rupiah(r.balanceAfter)) : ''}</td><td><b>${rupiah(r.amount)}</b>${r.topupAmount ? sub('Nilai top up: ' + rupiah(r.topupAmount)) : ''}</td>
-      <td>${esc(r.purpose)}</td>
+      <td>${esc(r.purpose)}${r.fuelId ? '<br><span style="color:#2563eb;font-size:11px;font-weight:700">⛽ dari permintaan BBM</span>' : ''}</td>
       <td>${badge(r.status)}${note}</td>
       <td><div class="rowactions">${act||'—'}</div></td></tr>`;
   }).join('') : '<tr><td colspan="8" class="empty">Belum ada permintaan E-Toll.</td></tr>';
@@ -1505,7 +1628,7 @@ function openEtollForm() {
   const isAdmin = currentUser.role === 'admin';
   openModal('Ajukan Permintaan E-Toll', `<form id="etollForm"><div class="formgrid">
     <div><label>Nama Pemohon *</label><input name="requester" required value="${isAdmin ? esc(currentUser.name) : ''}"></div>
-    <div><label>Bidang / Divisi *</label><input name="division" required></div>
+    ${bidangFields({})}
     <div><label>Nomor Kartu E-Toll *</label><input name="card" required autocomplete="off"></div>
     <div><label>Kendaraan *</label><select name="vehicleId" required>${vehicleOptions('', true)}</select></div>
     <div><label>Saldo E-Toll Saat Ini (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Wajib diisi, cek saldo di kartu"></div>
@@ -1521,6 +1644,7 @@ function openEtollForm() {
     const d = Object.fromEntries(new FormData(e.target));
     d.balance = Number(d.balance); d.amount = Number(d.amount);
     if (!d.photo1) delete d.photo1;
+    applyDivision(d);
     if (!(d.balance >= 0) || d.balance !== d.balance) { toast('Saldo kartu E-Toll wajib diisi.'); return; }
     if (!(d.amount > 0)) { toast('Nominal permintaan harus lebih dari 0.'); return; }
     db.etoll = db.etoll || [];
@@ -1618,8 +1742,12 @@ function quickStatus(rId, status) {
   let r = db.requests.find(x => x.id === rId);
   if (!r) return;
   if (status === 'Ditolak') { let reason = prompt('Alasan penolakan:', r.adminNotes||''); if(reason===null)return; r.adminNotes = reason; }
-  if (status === 'Disetujui') { let admin = prompt('Nama admin penanggung jawab:', r.admin||currentUser.name); if(admin===null)return; r.admin = admin; }
-  r.status = status; save(); toast('Status diperbarui menjadi '+status);
+  if (status === 'Disetujui') {
+    const c = findConflict(r, r.id); if (c && !confirm(conflictText(c))) return;
+    let admin = prompt('Nama admin penanggung jawab:', r.admin||currentUser.name); if(admin===null)return; r.admin = admin;
+  }
+  r.status = status; save();
+  toast(status === 'Disetujui' && !r.vehicleId ? 'Disetujui. Pilih kendaraan lewat tombol Edit agar ketersediaan terupdate.' : 'Status diperbarui menjadi '+status);
 }
 
 function openVehicleForm(vId=null) {
@@ -1653,7 +1781,7 @@ function renderVehicles() {
     <td>${esc(v.type)}</td>
     <td>${esc(v.card||'—')}</td>
     <td>${esc(v.driver||'—')}</td>
-    <td>${badge(v.status)}</td>
+    <td>${badge(v.status)} ${(() => { const a = vehicleAvailability(v); return a.state === 'off' ? '' : badge(a.state === 'used' ? 'Tidak Tersedia' : 'Tersedia'); })()}</td>
     <td><div class="rowactions"><button class="outline tiny" onclick="openVehicleForm('${v.id}')">Edit</button><button class="danger tiny" onclick="deleteItem('vehicles','${v.id}')">Hapus</button></div></td>
   </tr>`).join('') : '<tr><td colspan="7" class="empty">Belum ada armada kendaraan.</td></tr>';
   $('vehicleCount').textContent = `Menampilkan ${rows.length} dari ${db.vehicles.length} kendaraan`;
@@ -1737,7 +1865,7 @@ function openImportCsvModal(defaultType='fuel') {
 function exportCSV(kind) {
   if (!requireAdmin()) return;
  if(kind==='fuel'){
-  downloadCSV('Permintaan_BBM',['Tanggal','Bidang','Nomor Polisi','Merek/Model','Pengemudi','Metode','Jenis BBM','Liter','Nominal Rupiah','Odometer KM','Referensi','SPBU','Lokasi','Catatan','Status'],db.fuel.map(f=>{let v=db.vehicles.find(x=>x.id===f.vehicleId)||{};return [f.date,f.bidang||'BITU',v.plate,v.model,f.driver,f.method,f.fuelType,f.liters,f.amount,f.odometer,f.reference,f.spbu||f.station,f.location,f.notes,fuelStatus(f)]}))
+  downloadCSV('Permintaan_BBM',['Tanggal','Bidang','Sub-Bagian','Nomor Polisi','Merek/Model','Pengemudi','Metode','Jenis BBM','Liter','Nominal Rupiah','Odometer KM','Referensi','SPBU','Lokasi','Catatan','Status'],db.fuel.map(f=>{let v=db.vehicles.find(x=>x.id===f.vehicleId)||{};return [f.date,f.bidang||'BITU',f.subBagian||'',v.plate,v.model,f.driver,f.method,f.fuelType,f.liters,f.amount,f.odometer,f.reference,f.spbu||f.station,f.location,f.notes,fuelStatus(f)]}))
  } else if(kind==='vehicles'){
   downloadCSV('Data_Kendaraan',['Nomor Polisi','Merek/Model','Jenis','Nomor Kartu BBM','Driver Default','Status'],db.vehicles.map(v=>[v.plate,v.model,v.type,v.card,v.driver,v.status]))
  } else if(kind==='requests'){
@@ -1782,6 +1910,7 @@ window.onload = function() {
   renderAll();
   checkSessionOnLoad();
   loadFromServer();
+  setInterval(renderAvailability, 60000);
   setInterval(() => { if (document.hidden) return; if (pendingOps().length) syncNow(); else loadFromServer(true); }, 90000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFromServer(true); });
 };
