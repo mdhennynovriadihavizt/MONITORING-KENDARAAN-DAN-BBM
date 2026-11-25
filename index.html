@@ -246,6 +246,27 @@ tbody tr:hover { background: #f8fafc; }
 .modalhead h3 { margin: 0; font-size: 18px; font-weight: 800; }
 .modalbody { padding: 28px; }
 
+#notifStack { position:fixed; top:78px; right:16px; z-index:10001; display:flex; flex-direction:column; gap:10px; width:min(340px, calc(100vw - 32px)); pointer-events:none; }
+.notif-pop { pointer-events:auto; display:flex; gap:12px; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid #2563eb; border-radius:14px; padding:12px 14px; box-shadow:0 12px 32px rgba(15,23,42,.22); cursor:pointer; animation:npIn .35s ease both; }
+.notif-pop.out { animation:npOut .3s ease both; }
+@keyframes npIn { from { transform:translateX(120%); opacity:0; } to { transform:none; opacity:1; } }
+@keyframes npOut { to { transform:translateX(120%); opacity:0; } }
+.np-ico { font-size:22px; line-height:1.1; }
+.np-body { flex:1; display:flex; flex-direction:column; gap:2px; font-size:12px; color:#475569; min-width:0; }
+.np-body b { color:#0f172a; font-size:13px; }
+.np-x { background:none; border:0; font-size:18px; color:#94a3b8; cursor:pointer; line-height:1; padding:0 2px; }
+.bell-wrap { position:relative; margin-right:10px; }
+.bell-btn { position:relative; padding:6px 10px; font-size:15px; }
+.bell-count { position:absolute; top:-7px; right:-7px; min-width:18px; height:18px; border-radius:99px; background:#dc2626; color:#fff; font-size:10px; font-weight:800; display:none; align-items:center; justify-content:center; padding:0 4px; }
+.notif-panel { display:none; position:absolute; right:0; top:44px; width:340px; max-width:calc(100vw - 24px); max-height:70vh; background:#fff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 18px 44px rgba(15,23,42,.25); z-index:10002; overflow:hidden; }
+.notif-panel.open { display:block; }
+.np-head { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #e2e8f0; }
+.np-list { max-height:52vh; overflow:auto; }
+.np-item { display:flex; gap:10px; padding:10px 14px; border-bottom:1px solid #f1f5f9; cursor:pointer; font-size:12px; color:#475569; }
+.np-item.unread { background:#eff6ff; }
+.np-item b { display:block; color:#0f172a; font-size:12.5px; }
+.np-item small { color:#94a3b8; }
+.np-empty, .np-note { padding:16px; font-size:12px; color:#94a3b8; text-align:center; }
 .toast { position: fixed; right: 28px; bottom: 28px; background: var(--navy-dark); color: #fff; padding: 14px 22px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: 13.5px; font-weight: 600; z-index: 60; display: none; border: 1px solid rgba(255,255,255,0.1); }
 .toast.show { display: block; animation: fadeIn 0.3s; }
 
@@ -510,7 +531,11 @@ button:disabled { opacity:.85; cursor:wait; }
       <h2 id="pageTitle">Permintaan Mobil</h2>
     </div>
   </div>
-  <div class="topright">
+  <div class="topright" style="display:flex;align-items:center">
+    <div class="bell-wrap admin-only">
+      <button class="outline bell-btn" id="bellBtn" onclick="toggleNotifPanel(event)" title="Notifikasi">🔔<span class="bell-count" id="bellCount">0</span></button>
+      <div class="notif-panel" id="notifPanel" onclick="event.stopPropagation()"></div>
+    </div>
     <div class="user-badge">
       <div class="user-info">
         <span class="user-name" id="currentUserName">PUMASCIBDL</span>
@@ -664,7 +689,7 @@ button:disabled { opacity:.85; cursor:wait; }
       <button class="outline admin-only" onclick="exportEtoll()">Ekspor Excel</button>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Tanggal</th><th>Pemohon / Divisi</th><th>Kartu & Kendaraan</th><th>Saldo E-Toll</th><th>Nominal Diminta</th><th>Keperluan</th><th>Status</th><th>Aksi</th></tr></thead>
+      <thead><tr><th>Tanggal</th><th>Pemohon / Divisi</th><th>Kartu & Kendaraan</th><th>Saldo Awal</th><th>Saldo Akhir</th><th>Saldo Yang Digunakan</th><th>Keperluan</th><th>Status</th><th>Aksi</th></tr></thead>
       <tbody id="etollTable"></tbody>
     </table></div>
     <div class="notice" id="etollCount"></div>
@@ -696,6 +721,7 @@ button:disabled { opacity:.85; cursor:wait; }
 
 <div class="modalback" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modalhead"><h3 id="modalTitle">Form Header</h3><button class="secondary" onclick="closeModal()">✕</button></div><div class="modalbody" id="modalBody"></div></div></div>
 <div class="toast" id="toast"></div>
+<div id="notifStack"></div>
 <div id="syncPill" onclick="syncNow().then(() => loadFromServer(true))" style="position:fixed;left:14px;bottom:14px;z-index:10000;display:none;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;font-size:11px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.12);cursor:pointer"></div>
 
 <script>
@@ -750,16 +776,119 @@ function pendingOps() {
   });
   return ops;
 }
-async function loadFromServer(silent, force) {
+async function loadFromServer(silent, force, quiet) {
   if (!force && (syncing || pendingOps().length)) return;
   if (!silent) setSync('loading');
   try {
     const r = await api('getData');
     if (!r.ok) throw new Error(r.error || 'gagal');
+    const prev = { fuel: new Set(db.fuel.map(x => x.id)), requests: new Set(db.requests.map(x => x.id)), etoll: new Map((db.etoll || []).map(x => [x.id, !!x.proof])) };
     DATA_COLS.forEach(c => db[c] = r.data[c] || []);
     snapshotDb(); renderAll(); setSync('ok');
+    if (currentUser.role === 'admin') { if (notifFirstLoad || quiet) notifyAdminReady(); else detectEvents(prev); }
+    notifFirstLoad = false;
   } catch (e) { setSync('error'); }
 }
+// ====== NOTIFIKASI ADMIN ======
+const NOTIF_KEY = 'emove_notif_log';
+let notifLog = [];
+try { notifLog = JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'); } catch (e) {}
+let notifFirstLoad = true;
+
+function saveNotifLog() { try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifLog.slice(0, 30))); } catch (e) {} }
+function updateBell() {
+  const n = notifLog.filter(x => !x.read).length, el = $('bellCount');
+  if (el) { el.textContent = n > 9 ? '9+' : n; el.style.display = n ? 'flex' : 'none'; }
+}
+function timeAgo(iso) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+  return m < 1 ? 'baru saja' : m < 60 ? m + ' menit lalu' : m < 1440 ? Math.round(m / 60) + ' jam lalu' : Math.round(m / 1440) + ' hari lalu';
+}
+function beep() {
+  try {
+    const A = window.AudioContext || window.webkitAudioContext, c = new A(), o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination); o.frequency.value = 880;
+    g.gain.setValueAtTime(.12, c.currentTime); g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .35);
+    o.start(); o.stop(c.currentTime + .36);
+  } catch (e) {}
+}
+function gotoNotif(n) {
+  if (n.action === 'enable') { enableDeviceNotif(); return; }
+  const f = notifLog.find(x => x.id === n.id); if (f) { f.read = true; saveNotifLog(); updateBell(); }
+  const p = $('notifPanel'); if (p) p.classList.remove('open');
+  if (n.page) navigate(n.page);
+}
+function openNotif(nid) { const n = notifLog.find(x => x.id === nid); if (n) gotoNotif(n); }
+function showPopup(n) {
+  const stack = $('notifStack'); if (!stack) return;
+  const el = document.createElement('div'); el.className = 'notif-pop';
+  el.innerHTML = `<div class="np-ico">${n.icon || '🔔'}</div><div class="np-body"><b>${esc(n.title)}</b><span>${esc(n.body)}</span></div><button class="np-x" aria-label="Tutup">×</button>`;
+  el.onclick = e => { if (!e.target.classList.contains('np-x')) gotoNotif(n); el.remove(); };
+  stack.prepend(el);
+  while (stack.children.length > 4) stack.lastChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 9000);
+}
+async function deviceNotify(n) {
+  if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+  const opts = { body: n.body, icon: logoUri(), tag: n.id };
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) return reg.showNotification(n.title, opts); } catch (e) {}
+  try { const x = new Notification(n.title, opts); x.onclick = () => { window.focus(); gotoNotif(n); x.close(); }; } catch (e) {}
+}
+function pushNotif(ev) {
+  const n = { id: id(), time: new Date().toISOString(), read: false, ...ev };
+  notifLog.unshift(n); notifLog = notifLog.slice(0, 30);
+  saveNotifLog(); updateBell(); renderNotifPanel();
+  showPopup(n); beep(); deviceNotify(n);
+}
+function renderNotifPanel() {
+  const el = $('notifPanel'); if (!el) return;
+  const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  const items = notifLog.map(n => `<div class="np-item ${n.read ? '' : 'unread'}" onclick="openNotif('${n.id}')"><div style="font-size:18px">${n.icon || '🔔'}</div><div><b>${esc(n.title)}</b><span>${esc(n.body)}</span><br><small>${esc(timeAgo(n.time))}</small></div></div>`).join('') || '<div class="np-empty">Belum ada notifikasi.</div>';
+  el.innerHTML = `<div class="np-head"><b>Notifikasi</b><button class="outline tiny" onclick="clearNotifs()">Bersihkan</button></div>
+    ${perm === 'default' ? '<div style="padding:8px 12px"><button class="primary tiny" onclick="enableDeviceNotif()">Aktifkan notifikasi perangkat</button></div>' : perm === 'denied' ? '<div class="np-note">Notifikasi perangkat diblokir di pengaturan browser.</div>' : ''}
+    <div class="np-list">${items}</div>`;
+}
+function toggleNotifPanel(e) {
+  if (e) e.stopPropagation();
+  const p = $('notifPanel'); if (!p) return;
+  const open = !p.classList.contains('open');
+  renderNotifPanel(); p.classList.toggle('open', open);
+  if (open) { notifLog.forEach(x => x.read = true); saveNotifLog(); updateBell(); }
+}
+function clearNotifs() { notifLog = []; saveNotifLog(); updateBell(); renderNotifPanel(); }
+function registerSW() { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+function enableDeviceNotif() {
+  if (!('Notification' in window)) { toast('Browser ini belum mendukung notifikasi perangkat.'); return; }
+  Notification.requestPermission().then(p => { renderNotifPanel(); toast(p === 'granted' ? 'Notifikasi perangkat aktif ✅' : 'Notifikasi perangkat tidak diizinkan.'); if (p === 'granted') registerSW(); });
+}
+// Ringkasan saat Admin membuka aplikasi / login
+function notifyAdminReady() {
+  const a = db.requests.filter(r => r.status === 'Menunggu').length, b = db.fuel.filter(f => fuelStatus(f) === 'Menunggu').length, c = (db.etoll || []).filter(r => r.status === 'Menunggu').length;
+  if (a + b + c) showPopup({ id: 'sum', icon: '📋', title: (a + b + c) + ' permintaan menunggu persetujuan', body: `${a} Mobil · ${b} BBM · ${c} E-Toll`, page: a >= b && a >= c ? 'requests' : b >= c ? 'fuel' : 'etoll' });
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') registerSW();
+    else if (Notification.permission === 'default' && !localStorage.getItem('emove_notif_asked')) {
+      localStorage.setItem('emove_notif_asked', '1');
+      showPopup({ id: 'ask', icon: '🔔', title: 'Aktifkan notifikasi perangkat?', body: 'Klik di sini agar permintaan baru tetap muncul walau tab di latar belakang.', action: 'enable' });
+    }
+  }
+}
+// Deteksi permintaan / bukti baru dari pengguna lain
+function detectEvents(prev) {
+  const me = currentUser.name, ev = [];
+  db.fuel.forEach(f => { if (!prev.fuel.has(f.id) && fuelStatus(f) === 'Menunggu' && f.createdBy !== me) {
+    const v = db.vehicles.find(x => x.id === f.vehicleId);
+    ev.push({ icon: '⛽', title: 'Permintaan BBM baru', body: `${f.driver || '—'}${v ? ' · ' + v.plate : ''} · ${rupiah(f.amount)}${f.etollId ? ' + E-Toll' : ''}${(f.photo1 || f.photo2) ? ' · ada bukti foto' : ''}`, page: 'fuel' }); } });
+  db.requests.forEach(r => { if (!prev.requests.has(r.id) && r.status === 'Menunggu' && r.createdBy !== me)
+    ev.push({ icon: '🚗', title: 'Permintaan Mobil baru', body: `${r.requester || '—'} → ${r.destination || '—'}${r.departDate ? ' · ' + fmtDT(r.departDate, r.departTime) : ''}`, page: 'requests' }); });
+  (db.etoll || []).forEach(r => {
+    if (!prev.etoll.has(r.id)) { if (r.status === 'Menunggu' && !r.fuelId && r.createdBy !== me) ev.push({ icon: '💳', title: 'Permintaan E-Toll baru', body: `${r.requester || '—'} · kartu ${r.card || '—'}`, page: 'etoll' }); }
+    else if (!prev.etoll.get(r.id) && r.proof) ev.push({ icon: '📎', title: 'Bukti E-Toll diunggah', body: `${r.requester || '—'} · kartu ${r.card || '—'}`, page: 'etoll' });
+  });
+  if (ev.length > 4) pushNotif({ icon: '📋', title: ev.length + ' pembaruan baru', body: 'Ada beberapa permintaan / bukti baru dari pengguna.', page: 'requests' });
+  else ev.forEach(pushNotif);
+}
+
 function queueSync() { clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 400); }
 async function syncNow() {
   if (syncing) { syncAgain = true; return; }
@@ -896,7 +1025,7 @@ async function handleLogin(e) {
     applyRolePermissions();
     navigate(currentUser.super ? 'accounts' : 'dashboard');
     toast('Berhasil masuk sebagai ' + (currentUser.super ? 'Super Admin' : 'Administrator') + ' PUMA SCI');
-    await syncNow(); loadFromServer(true);
+    await syncNow(); loadFromServer(true, false, true);
   } catch (err) { netErr(err); } finally { busy(btn, false); $('loginStatus').style.display = 'none'; }
 }
 
@@ -1329,7 +1458,7 @@ function openFuelForm(fId=null) {
     <label style="display:flex;gap:10px;align-items:center;cursor:pointer;color:#2563eb;margin:0"><input type="checkbox" name="withEtoll" style="width:auto;margin:0" onchange="$('etollInFuel').style.display=this.checked?'grid':'none'"> 💳 Sekaligus ajukan permintaan E-Toll</label>
     <div id="etollInFuel" style="display:none;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px">
       <div><label>Nomor Kartu E-Toll *</label><input name="etoll_card" autocomplete="off"></div>
-      <div><label>Saldo E-Toll (Rp) *</label><input type="number" name="etoll_balance" min="0" step="1"></div>
+      <div><label>Saldo Akhir (Rp) *</label><input type="number" name="etoll_balance" min="0" step="1"></div>
       <div style="grid-column:1/-1">
         <span style="font-size:11px;font-weight:700;color:#64748b">Lampiran E-Toll (foto kartu / saldo E-Toll)</span>
         <div class="upload-box" onclick="$('etollFuelPhotoInput').click()">
@@ -1339,7 +1468,7 @@ function openFuelForm(fId=null) {
           <input type="hidden" name="etoll_photo" id="etollFuelPhotoData">
         </div>
       </div>
-      <div style="grid-column:1/-1;font-size:11px;color:#64748b">Nilai top up ditentukan Admin. Permintaan E-Toll diproses terpisah dan juga muncul di menu Permintaan E-Toll.</div>
+      <div style="grid-column:1/-1;font-size:11px;color:#64748b">Saldo Awal dan Saldo Yang Digunakan dilengkapi Admin. Permintaan E-Toll diproses terpisah dan juga muncul di menu Permintaan E-Toll.</div>
     </div></div>` : ''}
 
   <div class="full"><label>Catatan</label><textarea name="notes" rows="2" placeholder="Keterangan tambahan">${esc(f.notes||'')}</textarea></div>
@@ -1355,7 +1484,7 @@ function openFuelForm(fId=null) {
     let tol = null;
     if (!fId && d.withEtoll) {
       const bal = Number(d.etoll_balance);
-      if (!d.etoll_card || d.etoll_balance === '' || !(bal >= 0)) { toast('Lengkapi data E-Toll: nomor kartu dan saldo E-Toll.'); return; }
+      if (!d.etoll_card || d.etoll_balance === '' || !(bal >= 0)) { toast('Lengkapi data E-Toll: nomor kartu dan Saldo Akhir.'); return; }
       tol = { id:id(), createdAt:today(), createdBy:currentUser.name, status:'Menunggu', requester:d.driver, division:d.bidang + ' - ' + d.subBagian, bidang:d.bidang, subBagian:d.subBagian, card:d.etoll_card.trim(), vehicleId:d.vehicleId, balance:bal, purpose:'Diajukan bersama permintaan BBM' };
       if (d.etoll_photo) tol.photo1 = d.etoll_photo;
     }
@@ -1474,7 +1603,7 @@ function printEtoll(rId) {
   const v = db.vehicles.find(x => x.id === r.vehicleId) || {};
   const w = window.open('', '_blank', 'width=850,height=950');
   if (!w) { toast('Izinkan pop-up browser untuk mencetak bukti.'); return; }
-  const hasAfter = r.topupAmount != null && r.topupAmount !== '';
+  const used = etollUsed(r);
   const rows = [
     ['Tanggal Pengajuan', r.createdAt || '—'],
     ['Nama Pemohon', r.requester || '—'],
@@ -1482,18 +1611,17 @@ function printEtoll(rId) {
     ['Nomor Kartu E-Toll', r.card || '—'],
     ['Kendaraan', v.plate ? `${v.plate} (${v.model || ''})` : '—'],
     ['Keperluan / Rute', r.purpose || '—'],
-    ['Nominal Diminta', r.amount ? rupiah(r.amount) : '—'],
-    ['Saldo E-Toll', rupiah(r.balance)],
-    ['Nilai Top Up Saldo E-Toll', hasAfter ? rupiah(r.topupAmount) : '—'],
+    ['Saldo Awal', r.amount ? rupiah(r.amount) : '—'],
+    ['Saldo Akhir', rupiah(r.balance)],
   ];
   const body = rows.map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('') +
-    `<tr class="total-row"><th>TOTAL SALDO</th><td>${hasAfter ? rupiah(Number(r.balance) + Number(r.topupAmount)) : '—'}</td></tr>` +
+    `<tr class="total-row"><th>SALDO YANG DIGUNAKAN</th><td>${used != null ? rupiah(used) : '—'}</td></tr>` +
     [['Tanggal Pengisian', r.topupDate || '—'], ['Status', r.status || '—'], ['Disetujui oleh', r.admin || '—'], ['Catatan Admin', r.adminNotes || '—']]
       .map(([l, val]) => `<tr><th>${esc(l)}</th><td>${esc(val)}</td></tr>`).join('');
   let photos = '';
   if (r.photo1 || r.proof) {
     photos = `<div class="photo-section"><h3>Lampiran Foto</h3><div class="photo-grid">
-      ${r.photo1 ? `<div><img src="${esc(r.photo1)}"><p>Foto Saldo Kartu Sebelum Top-up</p></div>` : ''}
+      ${r.photo1 ? `<div><img src="${esc(r.photo1)}"><p>Lampiran Saldo E-Toll</p></div>` : ''}
       ${r.proof ? `<div><img src="${esc(r.proof)}"><p>Bukti Setelah Top-up${r.proofDate ? ' (' + esc(r.proofDate) + ')' : ''}</p></div>` : ''}
     </div></div>`;
   }
@@ -1655,6 +1783,12 @@ function compressImage(file, cb, maxSide=1000, quality=0.75) {
   reader.readAsDataURL(file);
 }
 
+// Saldo Awal (amount) - Saldo Akhir (balance) = Saldo Yang Digunakan
+function etollUsed(r) {
+  const a = Number(r.amount), b = Number(r.balance);
+  return (a > 0 && r.balance != null && r.balance !== '' && b >= 0 && a >= b) ? a - b : null;
+}
+
 function renderEtoll() {
   if (!$('etollTable')) return;
   const isAdmin = currentUser.role === 'admin';
@@ -1665,7 +1799,7 @@ function renderEtoll() {
   const sub = t => `<br><span style="color:#64748b;font-size:11px">${t}</span>`;
   $('etollTable').innerHTML = rows.length ? rows.map(r => {
     let note = r.status==='Ditolak' && r.adminNotes ? sub(esc(r.adminNotes)) : '';
-    if (r.topupAmount) note += sub('Diisi ' + rupiah(r.topupAmount) + ' · ' + esc(r.topupDate||''));
+    if (r.topupDate) note += sub('Diisi ' + esc(r.topupDate));
     let act = '';
     if (isAdmin) {
       if (r.status==='Menunggu') act += `<button class="success tiny" onclick="quickEtollStatus('${r.id}','Disetujui')">Setujui</button><button class="danger tiny" onclick="quickEtollStatus('${r.id}','Ditolak')">Tolak</button>`;
@@ -1679,11 +1813,11 @@ function renderEtoll() {
       <td>${esc(r.createdAt||'—')}</td>
       <td><b>${esc(r.requester)}</b>${sub(esc(r.division))}</td>
       <td><b>${esc(r.card)}</b>${sub(esc(vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId))))}</td>
-      <td>${rupiah(r.balance)}${r.balanceAfter != null ? sub('Total saldo: ' + rupiah(r.balanceAfter)) : ''}</td><td><b>${r.amount ? rupiah(r.amount) : '<span style="color:#94a3b8;font-weight:600">Ditentukan Admin</span>'}</b>${r.topupAmount ? sub('Nilai top up: ' + rupiah(r.topupAmount)) : ''}</td>
+      <td>${r.amount ? rupiah(r.amount) : '<span style="color:#94a3b8;font-weight:600">Ditentukan Admin</span>'}</td><td>${rupiah(r.balance)}</td><td><b>${etollUsed(r) != null ? rupiah(etollUsed(r)) : '—'}</b></td>
       <td>${esc(r.purpose)}${r.fuelId ? '<br><span style="color:#2563eb;font-size:11px;font-weight:700">⛽ dari permintaan BBM</span>' : ''}</td>
       <td>${badge(r.status)}${note}</td>
       <td><div class="rowactions">${act||'—'}</div></td></tr>`;
-  }).join('') : '<tr><td colspan="8" class="empty">Belum ada permintaan E-Toll.</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">Belum ada permintaan E-Toll.</td></tr>';
   $('etollCount').textContent = `Menampilkan ${rows.length} dari ${all.length} permintaan`;
 }
 
@@ -1694,22 +1828,27 @@ function openEtollForm() {
     ${bidangFields({})}
     <div><label>Nomor Kartu E-Toll *</label><input name="card" required autocomplete="off"></div>
     <div><label>Kendaraan *</label><select name="vehicleId" required>${vehicleOptions('', true)}</select></div>
-    <div><label>Saldo E-Toll Saat Ini (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Wajib diisi, cek saldo di kartu"></div>
-    <div><label>Nominal Permintaan Isi Saldo (Rp) *</label><input type="number" name="amount" min="1" step="1" required></div>
+    <div><label>Saldo Awal (Rp) *</label><input type="number" name="amount" min="1" step="1" required></div>
+    <div><label>Saldo Akhir (Rp) *</label><input type="number" name="balance" min="0" step="1" required placeholder="Sisa saldo pada kartu"></div>
+    <div class="full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px 14px"><label style="color:#1d4ed8;margin:0">Saldo Yang Digunakan (otomatis)</label><div id="etollUsedPrev" style="font-size:18px;font-weight:800;color:#1e3a8a">—</div></div>
     <div class="full"><label>Keperluan / Rute Perjalanan *</label><textarea name="purpose" required rows="3" placeholder="Contoh: Perjalanan dinas Bandar Lampung – Jakarta PP"></textarea></div>
     <div class="full"><label>Foto Saldo Kartu (opsional)</label>
       <div class="upload-box" onclick="$('etollPhotoInput').click()"><span style="font-size:12px;color:#64748b">Klik untuk melampirkan foto saldo kartu saat ini</span>
         <input type="file" id="etollPhotoInput" accept="image/*" hidden onchange="handleImageUpload(this,'etollPhotoPrev','etollPhotoData')">
         <img id="etollPhotoPrev" class="preview-img" style="display:none"><input type="hidden" name="photo1" id="etollPhotoData"></div></div>
   </div><div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Kirim Permintaan</button></div></form>`);
+  const updUsed = () => { const f = $('etollForm'), a = Number(f.elements.amount.value) || 0, b = Number(f.elements.balance.value) || 0; $('etollUsedPrev').textContent = (a > 0 && f.elements.balance.value !== '' && b <= a) ? rupiah(a - b) : '—'; };
+  $('etollForm').elements.amount.oninput = updUsed; $('etollForm').elements.balance.oninput = updUsed;
   $('etollForm').onsubmit = e => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target));
     d.balance = Number(d.balance); d.amount = Number(d.amount);
     if (!d.photo1) delete d.photo1;
     applyDivision(d);
-    if (!(d.balance >= 0) || d.balance !== d.balance) { toast('Saldo kartu E-Toll wajib diisi.'); return; }
-    if (!(d.amount > 0)) { toast('Nominal permintaan harus lebih dari 0.'); return; }
+    if (!(d.amount > 0)) { toast('Saldo Awal harus lebih dari 0.'); return; }
+    if (!(d.balance >= 0) || d.balance !== d.balance) { toast('Saldo Akhir wajib diisi.'); return; }
+    if (d.balance > d.amount) { toast('Saldo Akhir tidak boleh lebih besar dari Saldo Awal.'); return; }
+    d.topupAmount = d.amount - d.balance;
     db.etoll = db.etoll || [];
     db.etoll.push({ id:id(), createdAt:today(), createdBy:currentUser.name, status: 'Menunggu', ...d });
     save(); closeModal(); toast('Permintaan E-Toll terkirim, menunggu persetujuan Admin ✨');
@@ -1728,32 +1867,34 @@ function openEtollTopup(rId) {
   if (!requireAdmin()) return;
   const r = (db.etoll || []).find(x => x.id === rId); if (!r) return;
   openModal(r.status === 'Disetujui' ? 'Isi Saldo E-Toll' : 'Edit Saldo E-Toll', `<form id="topupForm">
-    <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> · ${r.amount ? 'Nominal diminta <b>' + rupiah(r.amount) + '</b>' : 'Nilai top up ditentukan Admin'}</p>
+    <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> · ${esc(r.requester || '')}</p>
     <div class="formgrid">
-      <div><label>Saldo E-Toll (Rp) *</label><input type="number" id="tpBefore" min="0" step="1" required value="${Number(r.balance) || 0}"></div>
-      <div><label>Nilai Top Up Saldo E-Toll (Rp) *</label><input type="number" id="tpTopup" min="1" step="1" required value="${r.topupAmount != null ? r.topupAmount : ''}"></div>
+      <div><label>Saldo Awal (Rp) *</label><input type="number" id="tpAwal" min="1" step="1" required value="${r.amount ? r.amount : ''}"></div>
+      <div><label>Saldo Akhir (Rp) *</label><input type="number" id="tpAkhir" min="0" step="1" required value="${r.balance != null && r.balance !== '' ? r.balance : ''}"></div>
       <div class="full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px">
-        <label style="color:#1d4ed8">Total Saldo (otomatis)</label>
+        <label style="color:#1d4ed8">Saldo Yang Digunakan (otomatis)</label>
         <div id="tpTotal" style="font-size:22px;font-weight:800;color:#1e3a8a">Rp 0</div>
         <div id="tpInfo" style="font-size:11px;color:#64748b;margin-top:4px"></div>
       </div>
     </div>
     <div class="form-actions"><button type="button" class="secondary" onclick="closeModal()">Batal</button><button type="submit" class="primary">Simpan</button></div></form>`);
   const calc = () => {
-    const b = Number($('tpBefore').value) || 0, t = Number($('tpTopup').value) || 0;
-    $('tpTotal').textContent = rupiah(b + t);
-    $('tpInfo').textContent = !$('tpTopup').value ? 'Isi nilai top up untuk menghitung total saldo.'
-      : t <= 0 ? 'Nilai top up harus lebih dari 0.'
-      : rupiah(b) + ' + ' + rupiah(t) + (!r.amount ? '' : t === Number(r.amount) ? ' · sesuai nominal diminta ✔' : ' · berbeda dari nominal diminta (' + rupiah(r.amount) + ')');
+    const aw = Number($('tpAwal').value) || 0, ak = Number($('tpAkhir').value) || 0;
+    const ok = $('tpAwal').value !== '' && $('tpAkhir').value !== '' && ak <= aw;
+    $('tpTotal').textContent = ok ? rupiah(aw - ak) : 'Rp 0';
+    $('tpInfo').textContent = $('tpAwal').value === '' || $('tpAkhir').value === '' ? 'Isi Saldo Awal dan Saldo Akhir untuk menghitung.'
+      : ak > aw ? 'Saldo Akhir tidak boleh lebih besar dari Saldo Awal.'
+      : rupiah(aw) + ' − ' + rupiah(ak) + ' = ' + rupiah(aw - ak);
   };
-  $('tpBefore').oninput = calc; $('tpTopup').oninput = calc; calc();
+  $('tpAwal').oninput = calc; $('tpAkhir').oninput = calc; calc();
   $('topupForm').onsubmit = e => {
     e.preventDefault();
-    const b = Number($('tpBefore').value), t = Number($('tpTopup').value);
-    if (!(b >= 0) || !(t > 0)) { toast('Nilai top up harus lebih dari 0.'); return; }
-    r.balance = b; r.topupAmount = t; r.balanceAfter = b + t;
+    const aw = Number($('tpAwal').value), ak = Number($('tpAkhir').value);
+    if (!(aw > 0) || !(ak >= 0)) { toast('Isi Saldo Awal dan Saldo Akhir dengan benar.'); return; }
+    if (ak > aw) { toast('Saldo Akhir tidak boleh lebih besar dari Saldo Awal.'); return; }
+    r.amount = aw; r.balance = ak; r.topupAmount = aw - ak; delete r.balanceAfter;
     if (r.status === 'Disetujui') { r.status = 'Sudah Diisi'; r.topupDate = today(); } else if (!r.topupDate) r.topupDate = today();
-    save(); closeModal(); toast('Tersimpan. Total saldo: ' + rupiah(b + t));
+    save(); closeModal(); toast('Tersimpan. Saldo Yang Digunakan: ' + rupiah(aw - ak));
   };
 }
 
@@ -1761,7 +1902,7 @@ function openEtollProof(rId) {
   const r = (db.etoll||[]).find(x => x.id === rId);
   if (!r || r.status !== 'Sudah Diisi') { toast('Bukti hanya dapat diunggah setelah saldo diisi oleh Admin.'); return; }
   openModal('Unggah Bukti E-Toll', `<form id="proofForm">
-    <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> telah diisi <b>${rupiah(r.topupAmount)}</b>. Lampirkan foto bukti (saldo kartu setelah pengisian / struk top-up).</p>
+    <p style="font-size:13px;color:#475569;margin:0 0 12px">Kartu <b>${esc(r.card)}</b> telah diproses Admin${etollUsed(r) != null ? ' (Saldo Yang Digunakan <b>' + rupiah(etollUsed(r)) + '</b>)' : ''}. Lampirkan foto bukti (saldo kartu / struk).</p>
     <div class="upload-box" onclick="$('proofInput').click()">
       <span style="font-size:12px;color:#64748b">Klik untuk memilih foto bukti</span>
       <input type="file" id="proofInput" accept="image/*" hidden>
@@ -1787,8 +1928,8 @@ function viewEtollProof(rId) {
 
 function exportEtoll() {
   if (!requireAdmin()) return;
-  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo E-Toll','Total Saldo','Nominal Diminta','Nilai Top Up','Tanggal Diisi','Keperluan','Status','Bukti'],
-    (db.etoll||[]).map(r => [r.createdAt,r.requester,r.division,r.card,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)),r.balance,r.balanceAfter!=null?r.balanceAfter:'',r.amount||'',r.topupAmount||'',r.topupDate||'',r.purpose,r.status,r.proof?'Ada':'Belum']));
+  downloadCSV('Permintaan_E-Toll', ['Tanggal Pengajuan','Pemohon','Divisi','Nomor Kartu','Kendaraan','Saldo Awal','Saldo Akhir','Saldo Yang Digunakan','Tanggal Diisi','Keperluan','Status','Bukti'],
+    (db.etoll||[]).map(r => [r.createdAt,r.requester,r.division,r.card,vehicleLabel(db.vehicles.find(v=>v.id===r.vehicleId)),r.amount||'',r.balance,etollUsed(r)!=null?etollUsed(r):'',r.topupDate||'',r.purpose,r.status,r.proof?'Ada':'Belum']));
 }
 
 function quickFuelStatus(fId, status) {
@@ -1974,7 +2115,10 @@ window.onload = function() {
   checkSessionOnLoad();
   loadFromServer();
   setInterval(renderAvailability, 60000);
-  setInterval(() => { if (document.hidden) return; if (pendingOps().length) syncNow(); else loadFromServer(true); }, 90000);
+  let pollTick = 0;
+  setInterval(() => { pollTick++; const adm = currentUser.role === 'admin'; if (!adm && (document.hidden || pollTick % 2)) return; if (pendingOps().length) syncNow(); else loadFromServer(true); }, 45000);
+  document.addEventListener('click', () => { const p = $('notifPanel'); if (p) p.classList.remove('open'); });
+  updateBell(); renderNotifPanel();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFromServer(true); });
 };
 </script>
